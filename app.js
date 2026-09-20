@@ -143,7 +143,7 @@ function setup(passo = 1) {
     open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de 2</span></h2>
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Cada hábito constrói um prédio na ilha. Toque numa sugestão pra adicionar, ou crie o seu.</div>
-      <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.filter(s => !draft.habitos.some(h => h.nome === s.nome)).map((s, i) => `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
+      <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
       <div id="lista">${draft.habitos.map((h, i) => `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
         <div style="display:flex;justify-content:space-between;align-items:center"><div class="t">${h.icone} ${esc(h.nome)} <span class="d">→ ${S.DISTRITOS[h.distrito].nome}</span></div><button class="ghost" data-del="${i}">remover</button></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
@@ -165,7 +165,7 @@ function setup(passo = 1) {
   } else {
     open(`<h2>🎁 Suas recompensas <span class="d" style="font-size:12px">passo 2 de 2</span></h2>
       <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:6px">O que você quer poder comprar com as moedas dos hábitos? Toque pra adicionar e ajuste o preço (1 moeda ≈ 1 hábito cumprido; dia perfeito dá +2).</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_RECOMPENSAS.filter(s => !draft.rewards.some(r => r.nome === s.nome)).map((s, i) => `<button class="ghost" data-sug="${i}">${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outra</button></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_RECOMPENSAS.map((s, i) => draft.rewards.some(r => r.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outra</button></div>
       ${draft.rewards.map((r, i) => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}</div>
         ${r.folga !== undefined ? `<div class="d" style="margin-top:4px">folga de: <select class="price" style="width:auto" data-folga="${i}">${draft.habitos.map(h => `<option value="${h.id}" ${r.folga === h.id ? 'selected' : ''}>${h.icone} ${esc(h.nome)}</option>`).join('')}</select></div>` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center"><input class="price" type="number" min="1" value="${r.preco}" data-preco="${i}"><button class="ghost" data-del="${i}">✕</button></div></div>`).join('') || '<div class="d">Nenhuma recompensa ainda.</div>'}
