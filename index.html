@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b1e33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Ilha">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Ilha</title>
+<style>
+  :root { --bg:#0b1e33; --card:rgba(10,25,45,.82); --txt:#eef4ff; --muted:#9db3cc; --ok:#4cd98a; --gold:#ffcc4d; --line:rgba(255,255,255,.12); }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
+  #c { position:fixed; top:0; left:0; width:100vw; height:100vh; display:block; touch-action:none; }
+  #top { position:fixed; top:0; left:0; right:0; padding:calc(env(safe-area-inset-top) + 10px) 14px 8px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
+  .pill { background:var(--card); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-weight:700; font-size:15px; pointer-events:auto; }
+  .pill small { font-weight:500; color:var(--muted); margin-left:4px; }
+  #gold { color:var(--gold); }
+  #toast { position:fixed; top:calc(env(safe-area-inset-top) + 64px); left:50%; transform:translateX(-50%); background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; font-size:14px; opacity:0; transition:opacity .3s; pointer-events:none; max-width:90vw; text-align:center; }
+  #bottom { position:fixed; left:0; right:0; bottom:0; padding:10px 12px calc(env(safe-area-inset-bottom) + 12px); background:linear-gradient(transparent, rgba(5,15,30,.9) 30%); }
+  #habits { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:10px; }
+  .hab { background:var(--card); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px; padding:12px 8px; text-align:center; cursor:pointer; user-select:none; transition:transform .1s, background .2s; }
+  .hab:active { transform:scale(.96); }
+  .hab .ico { font-size:28px; }
+  .hab .nm { font-size:13px; font-weight:700; margin-top:4px; }
+  .hab .st { font-size:11px; color:var(--muted); margin-top:2px; }
+  .hab.on { background:rgba(76,217,138,.22); border-color:var(--ok); }
+  .hab.rest { background:rgba(255,204,77,.18); border-color:var(--gold); }
+  .hab.off { opacity:.55; }
+  #actions { display:flex; gap:8px; }
+  #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:10px 4px; font-size:13px; font-weight:600; }
+  #modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:10; }
+  #modal.open { display:flex; }
+  #sheet { background:#122a45; width:100%; max-width:520px; max-height:82vh; overflow:auto; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); }
+  #sheet h2 { margin:0 0 12px; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
+  #sheet h2 button { background:none; border:none; color:var(--muted); font-size:22px; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); gap:10px; }
+  .row .t { font-weight:600; } .row .d { font-size:12px; color:var(--muted); }
+  .buy { background:var(--gold); color:#2b1d00; border:none; border-radius:10px; padding:8px 12px; font-weight:800; white-space:nowrap; }
+  .buy:disabled { opacity:.35; }
+  .ghost { background:none; border:1px solid var(--line); color:var(--muted); border-radius:10px; padding:6px 10px; font-size:12px; }
+  .grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .day { aspect-ratio:1; border-radius:6px; background:rgba(255,255,255,.06); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); }
+  .day.p { background:var(--ok); color:#053; font-weight:800; } .day.h { background:rgba(76,217,138,.35); } .day.r { background:rgba(255,204,77,.5); }
+  .snaps { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .snaps img { width:100%; border-radius:10px; border:1px solid var(--line); }
+  .snaps div { font-size:12px; color:var(--muted); text-align:center; }
+  .stat { display:flex; justify-content:space-between; font-size:14px; padding:6px 0; }
+  .stat b { color:var(--gold); }
+  input.price { width:64px; background:rgba(255,255,255,.08); color:var(--txt); border:1px solid var(--line); border-radius:8px; padding:6px; text-align:center; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top">
+  <div class="pill" id="gold">0 <small>moedas</small></div>
+  <div class="pill" id="streak">🔥 0 <small>dias</small></div>
+</div>
+<div id="toast"></div>
+<div id="bottom">
+  <div id="habits">
+  </div>
+  <div id="actions">
+    <button data-m="loja">🛒 Loja</button>
+    <button data-m="hist">📅 Histórico</button>
+    <button data-m="fotos">📷 Fotos</button>
+    <button data-m="info">ℹ️ Ilha</button>
+  </div>
+</div>
+<div id="modal"><div id="sheet"></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
