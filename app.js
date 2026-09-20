@@ -15,7 +15,8 @@ function render() {
   const iso = S.today();
   let tot = S.totals(state), c = S.coins(state), ps = S.perfectStreak(state);
   if (SIM !== null) { const n = +SIM; tot = { perfect: n, days: n, checks: n * state.habitos.length, por: Object.fromEntries(state.habitos.map(h => [h.id, n])) }; ps = n; c = n * 5; toast('Simulação: a ilha depois de ' + n + ' dias perfeitos', 4000); }
-  $('#gold').innerHTML = `${c} <small>moedas</small>`;
+  $('#gold').innerHTML = c < 0 ? `${c} <small>devendo</small>` : `${c} <small>moedas</small>`;
+  $('#gold').classList.toggle('debt', c < 0);
   $('#streak').innerHTML = `🔥 ${ps} <small>${ps === 1 ? 'dia' : 'dias'}</small>${S.shields(state) > 0 ? ` 🛡️${S.shields(state)}` : ''}`;
   // botoes de habitos
   const grid = $('#habits'); grid.style.gridTemplateColumns = `repeat(${Math.min(Math.max(state.habitos.length, 1), 3)}, 1fr)`;
@@ -67,13 +68,18 @@ const head = t => `<h2>${t}<button class="x">✕</button></h2>`;
 function loja() {
   const c = S.coins(state);
   open(head(`🛒 Loja · <span style="color:var(--gold)">${c} moedas</span>`) +
+    (c < 0 ? `<div class="d" style="font-size:13px;color:#ff8a80;margin-bottom:8px">Você está devendo ${-c} moeda${c < -1 ? 's' : ''}. As próximas moedas que ganhar pagam a dívida primeiro.</div>` : '') +
     `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:8px">Compra de manhã, aproveita à noite. O que você compra aparece na ilha hoje.</div>` +
     state.rewards.map(r => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}${r.folga ? ' · folga de ' + esc((state.habitos.find(h => h.id === r.folga) || {}).nome || '?') : ''}</div></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--gold);font-weight:800">${r.preco}</span>
-      <button class="buy" data-id="${r.id}" ${c < r.preco || (r.folga && S.boughtToday(state, r.id)) ? 'disabled' : ''}>${S.boughtToday(state, r.id) ? 'de novo' : 'comprar'}</button></div></div>`).join('') +
-    `<div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">Ganhos: 1 moeda por hábito + 2 no dia perfeito. ×1,5 a partir de 7 dias perfeitos seguidos, ×2 a partir de 30. Comeu sem pagar? Compra mesmo assim e fica devendo — a ilha não julga, mas anota.</div>
+      <button class="buy${c < r.preco ? ' fiado' : ''}" data-id="${r.id}" data-preco="${r.preco}" ${r.folga && S.boughtToday(state, r.id) ? 'disabled' : ''}>${S.boughtToday(state, r.id) ? 'de novo' : c < r.preco ? 'fiado' : 'comprar'}</button></div></div>`).join('') +
+    `<div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">Ganhos: 1 moeda por hábito + 2 no dia perfeito. ×1,5 a partir de 7 dias perfeitos seguidos, ×2 a partir de 30. Sem saldo? Dá pra comprar <b>fiado</b>: o saldo fica negativo e você paga com os próximos dias — a ilha não julga, mas anota.</div>
     <button class="ghost" id="edrec" style="margin-top:12px">✏️ editar recompensas</button>`);
-  sheet.querySelectorAll('.buy').forEach(b => b.onclick = () => { if (S.buy(state, b.dataset.id)) { S.save(state); toast(`Comprado: ${state.rewards.find(r => r.id === b.dataset.id).nome}. Aproveita! 🎉`); render(); loja(); } });
+  sheet.querySelectorAll('.buy').forEach(b => b.onclick = () => {
+    const nome = state.rewards.find(r => r.id === b.dataset.id).nome, falta = +b.dataset.preco - S.coins(state);
+    if (falta > 0 && !b.dataset.ok) { b.dataset.ok = 1; b.textContent = `ficar devendo ${falta}?`; setTimeout(() => { if (b.isConnected) { delete b.dataset.ok; b.textContent = 'fiado'; } }, 4000); return; }
+    if (S.buy(state, b.dataset.id, true)) { S.save(state); const c = S.coins(state); toast(c < 0 ? `Comprado fiado: ${nome}. Você está devendo ${-c} moeda${c < -1 ? 's' : ''}. 📝` : `Comprado: ${nome}. Aproveita! 🎉`, 3500); render(); loja(); }
+  });
   $('#edrec').onclick = () => setup(2);
 }
 

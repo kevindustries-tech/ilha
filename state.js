@@ -196,13 +196,18 @@ export function toggle(s, id) {
   if (d.folga && d.folga[id]) return;
   d[id] = !d[id];
 }
-export function buy(s, id) {
+// fiado = true permite comprar sem saldo: o saldo fica negativo (divida) e as
+// proximas moedas ganhas pagam a divida primeiro.
+export function buy(s, id, fiado = false) {
   const r = s.rewards.find(r => r.id === id);
-  if (!r || coins(s) < r.preco) return false;
-  s.purchases.push({ date: today(), id, preco: r.preco });
+  if (!r) return false;
+  const c = coins(s);
+  if (c < r.preco && !fiado) return false;
+  s.purchases.push({ date: today(), id, preco: r.preco, fiado: c < r.preco });
   if (r.folga) { const d = s.days[today()] = s.days[today()] || {}; d.folga = d.folga || {}; d.folga[r.folga] = true; }
   return true;
 }
+export const debt = s => Math.max(0, -coins(s));
 export function boughtToday(s, id) { return s.purchases.some(p => p.date === today() && p.id === id); }
 export function folgaHoje(s, id) { const d = s.days[today()]; return !!(d && d.folga && d.folga[id]); }
 export function level(count) { return { lvl: Math.floor(count / 7), prog: (count % 7) / 7 }; }
