@@ -313,8 +313,8 @@ export function createScene(canvas) {
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -36, right: 36, top: 36, bottom: -36, near: 1, far: 160 }); scene.add(sun);
   const moon = new THREE.DirectionalLight(0x9db4ff, 0); scene.add(moon);
-  const sunMesh = sphere(1.2, 0xffe27a, 0, 0, 0, { emissive: 0xffd24d, emissiveIntensity: 1.5 }); sunMesh.castShadow = false; scene.add(sunMesh);
-  const moonMesh = sphere(.9, 0xdfe7ff, 0, 0, 0, { emissive: 0xaebcff, emissiveIntensity: .9 }); moonMesh.castShadow = false; scene.add(moonMesh);
+  const sunMesh = sphere(5, 0xffe27a, 0, 0, 0, { emissive: 0xffd24d, emissiveIntensity: 1.5, fog: false }); sunMesh.castShadow = false; sunMesh.receiveShadow = false; scene.add(sunMesh);
+  const moonMesh = sphere(3.4, 0xdfe7ff, 0, 0, 0, { emissive: 0xaebcff, emissiveIntensity: .9, fog: false }); moonMesh.castShadow = false; moonMesh.receiveShadow = false; scene.add(moonMesh);
   // estrelas
   const sg = new THREE.BufferGeometry(); const sp = [];
   for (let i = 0; i < 500; i++) { const v = new THREE.Vector3().randomDirection(); if (v.y < .05) continue; sp.push(v.x * 90, v.y * 90, v.z * 90); }
@@ -495,9 +495,10 @@ export function createScene(canvas) {
     scene.fog.color.copy(foggy ? new THREE.Color(0x9aa5b1).lerp(sky, .4) : sky); scene.fog.density = foggy ? .03 : .0045;
     const ang = (hour - 6) / 12 * Math.PI; const sunUp = Math.sin(ang);
     sun.position.set(Math.cos(ang) * 60, Math.max(sunUp, .02) * 60, 24); sun.intensity = Math.max(sunUp, 0) * 1.7 * (foggy ? .55 : 1);
-    sunMesh.position.set(Math.cos(ang) * 70, sunUp * 70, 28); sunMesh.visible = sunUp > -.1;
+    // sol/lua bem longe: tem que parecer ceu, nao um objeto boiando em cima da ilha
+    sunMesh.position.set(Math.cos(ang) * 320, Math.max(sunUp, .06) * 300, 120); sunMesh.visible = sunUp > -.05;
     moon.position.set(-Math.cos(ang) * 30, Math.max(-sunUp, .02) * 30, -12); moon.intensity = Math.max(-sunUp, 0) * .35;
-    moonMesh.position.set(-Math.cos(ang) * 70, -sunUp * 70, -28); moonMesh.visible = sunUp < .1;
+    moonMesh.position.set(-Math.cos(ang) * 300, Math.max(-sunUp, .06) * 280, -140); moonMesh.visible = sunUp < .05;
     hemi.intensity = .25 + Math.max(sunUp, 0) * .5; stars.material.opacity = THREE.MathUtils.clamp(-sunUp * 2, 0, 1) * (foggy ? .3 : 1);
     // agua
     for (let i = 0; i < wpos.count; i++) { const x = wbase[i * 3], z = wbase[i * 3 + 2]; wpos.array[i * 3 + 1] = Math.sin(x * .4 + t * 1.2) * .12 + Math.cos(z * .5 + t * .9) * .12; }

@@ -156,17 +156,15 @@ function setup(passo = 1) {
           <select class="price" style="width:auto" data-tipo="${i}"><option value="diario" ${h.tipo === 'diario' ? 'selected' : ''}>todo dia</option><option value="dias" ${h.tipo === 'dias' ? 'selected' : ''}>dias fixos</option><option value="semana" ${h.tipo === 'semana' ? 'selected' : ''}>X vezes por semana</option></select>
           ${h.tipo === 'dias' ? N.map((n, d) => `<button class="ghost" data-dia="${i}:${d}" style="${h.dias.includes(d) ? 'background:var(--ok);color:#053' : ''}">${n}</button>`).join('') : ''}
           ${h.tipo === 'semana' ? `<input class="price" type="number" min="1" max="7" value="${h.vezes || 3}" data-vezes="${i}"> <span class="d">vezes/semana</span>` : ''}
-          <select class="price" style="width:auto" data-dist="${i}">${Object.entries(S.DISTRITOS).map(([k, v]) => `<option value="${k}" ${h.distrito === k ? 'selected' : ''}>${v.nome}</option>`).join('')}</select>
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
     $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
-    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, distrito: s.distrito, tipo: 'diario', dias: [], vezes: 3 }); setup(1); });
-    $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), distrito: 'oficina', tipo: 'diario', dias: [], vezes: 3 }); setup(1); };
+    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, distrito: s.distrito, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
+    $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), distrito: S.adivinhaDistrito(nome), tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.habitos.splice(+b.dataset.del, 1); setup(1); });
     sheet.querySelectorAll('[data-tipo]').forEach(s => s.onchange = () => { const h = draft.habitos[+s.dataset.tipo]; h.tipo = s.value; if (h.tipo === 'dias' && !h.dias.length) h.dias = [1, 3, 5]; setup(1); });
     sheet.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => { const [i, d] = b.dataset.dia.split(':').map(Number); const h = draft.habitos[i]; h.dias = h.dias.includes(d) ? h.dias.filter(x => x !== d) : [...h.dias, d]; setup(1); });
     sheet.querySelectorAll('[data-vezes]').forEach(i => i.onchange = () => { draft.habitos[+i.dataset.vezes].vezes = Math.max(1, Math.min(7, +i.value || 3)); });
-    sheet.querySelectorAll('[data-dist]').forEach(s => s.onchange = () => { draft.habitos[+s.dataset.dist].distrito = s.value; setup(1); });
     $('#prox').onclick = () => setup(2);
   } else {
     open(`<h2>🎁 Suas recompensas <span class="d" style="font-size:12px">passo 2 de 2</span></h2>
@@ -190,7 +188,7 @@ function setup(passo = 1) {
   }
 }
 
-document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info })[b.dataset.m]());
+document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, config: () => setup(1) })[b.dataset.m]());
 
 // ---------- inicio ----------
 if (S.applyShield(state)) { S.save(state); toast('🛡️ Um escudo salvou o dia de ontem.'); }

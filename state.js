@@ -51,6 +51,20 @@ export function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); 
 export function weekday(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).getDay(); } // 0 = domingo
 export const uid = () => Math.random().toString(36).slice(2, 8);
 
+// Em qual distrito o habito constroi. O usuario nao escolhe: adivinhamos pelo nome.
+const PALAVRAS = {
+  academia:   ['treino', 'muscul', 'academia', 'cardio', 'corr', 'caminh', 'bike', 'pedal', 'nat', 'luta', 'jiu', 'box', 'esport', 'futebol', 'alongam', 'yoga', 'pilates'],
+  capela:     ['devoc', 'ora', 'bibl', 'igreja', 'culto', 'medit', 'gratid', 'jejum', 'fé'],
+  horta:      ['comida', 'besteira', 'dieta', 'agua', 'água', 'dorm', 'sono', 'fruta', 'verdura', 'saúde', 'saude', 'remédio', 'remedio', 'skincare', 'vitamin', 'açúcar', 'acucar', 'refri'],
+  biblioteca: ['ler', 'leitura', 'livro', 'estud', 'curso', 'ingl', 'faculdade', 'prova', 'aula', 'idioma'],
+  oficina:    ['projeto', 'trabalh', 'código', 'codigo', 'program', 'criar', 'arte', 'música', 'musica', 'praticar', 'negócio', 'negocio'],
+};
+export function adivinhaDistrito(nome) {
+  const n = (nome || '').toLowerCase();
+  for (const [dist, palavras] of Object.entries(PALAVRAS)) if (palavras.some(p => n.includes(p))) return dist;
+  return 'oficina';
+}
+
 export function load() {
   let s = null;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch {}
@@ -59,6 +73,15 @@ export function load() {
     s = v1 ? { ...v1, setupDone: true } : {};
   }
   s.habitos = s.habitos || DEFAULT_HABITOS.map(h => ({ ...h }));
+  // 'desde' = dia em que o habito entrou. Antes disso ele nao conta: um habito novo
+  // nao pode quebrar sequencia nem tirar moedas de dias que ja passaram.
+  s.habitos.forEach(h => {
+    if (h.desde) return;
+    // sem 'desde' (habito criado antes desta versao): vale do 1o dia em que foi marcado,
+    // senao do inicio. Assim um habito adicionado ontem nao apaga a sequencia de antes.
+    const marcados = Object.keys(s.days || {}).filter(iso => s.days[iso] && s.days[iso][h.id]).sort();
+    h.desde = marcados.length ? marcados[0] : (s.start || today());
+  });
   s.days = s.days || {};            // 'YYYY-MM-DD' -> { [habitId]: true, folga: { [habitId]: true } }
   s.purchases = s.purchases || [];  // { date, id, preco }
   s.rewards = s.rewards || DEFAULT_REWARDS.map(r => ({ ...r }));
@@ -84,6 +107,7 @@ export function isDue(h, iso) {
 // Feito = marcou, ou folga, ou (X por semana) ainda "no prazo" da semana
 export function dayDone(s, iso, id) {
   const h = s.habitos.find(x => x.id === id); if (!h) return false;
+  if (h.desde && iso < h.desde) return true;   // habito ainda nao existia nesse dia
   if (doneRaw(s, iso, id)) return true;
   if (h.tipo === 'dias') return !h.dias.includes(weekday(iso));
   if (h.tipo === 'semana') {
@@ -104,7 +128,10 @@ export function streak(s, test) {
   while (test(iso) && iso >= s.start) { n++; iso = addDays(iso, -1); if (n > 5000) break; }
   return n;
 }
-export function habitStreak(s, id) { return streak(s, iso => dayDone(s, iso, id) || !!s.shieldsUsed[iso]); }
+export function habitStreak(s, id) {
+  const h = s.habitos.find(x => x.id === id);
+  return streak(s, iso => (!h || !h.desde || iso >= h.desde) && (dayDone(s, iso, id) || !!s.shieldsUsed[iso]));
+}
 export function perfectStreak(s) { return streak(s, iso => isPerfect(s, iso) || !!s.shieldsUsed[iso]); }
 
 // totais: checks reais por habito (so marcados, nao "nao devidos")

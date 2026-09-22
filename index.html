@@ -32,8 +32,9 @@
   .hab.on { background:rgba(76,217,138,.22); border-color:var(--ok); }
   .hab.rest { background:rgba(255,204,77,.18); border-color:var(--gold); }
   .hab.off { opacity:.55; }
-  #actions { display:flex; gap:8px; }
-  #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:10px 4px; font-size:13px; font-weight:600; }
+  #actions { display:flex; gap:6px; }
+  #actions #btcfg { flex:0 0 46px; font-size:18px; padding:10px 0; }
+  #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:10px 2px; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; }
   #modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:10; }
   #modal.open { display:flex; }
   #sheet { background:#122a45; width:100%; max-width:520px; max-height:82vh; overflow:auto; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); }
@@ -67,9 +68,10 @@
   </div>
   <div id="actions">
     <button data-m="loja">🛒 Loja</button>
-    <button data-m="hist">📅 Histórico</button>
+    <button data-m="hist">📅 Dias</button>
     <button data-m="fotos">📷 Fotos</button>
     <button data-m="info">ℹ️ Ilha</button>
+    <button data-m="config" id="btcfg">⚙️</button>
   </div>
 </div>
 <div id="modal"><div id="sheet"></div></div>
