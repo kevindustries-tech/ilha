@@ -1,11 +1,16 @@
 import { createScene } from './scene.js';
 import * as S from './state.js';
+import * as N from './nuvem.js';
 
 const $ = s => document.querySelector(s);
 const state = S.load();
 const scene = createScene($('#c'));
 const SIM = new URLSearchParams(location.search).get('sim');
 const HORA = new URLSearchParams(location.search).get('hora');
+
+// Salvar sempre passa por aqui: grava no aparelho na hora e agenda a copia na
+// nuvem. O jogo nunca espera a rede.
+function salvar() { S.save(state); N.agendarSubida(state); }
 
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, ms); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -54,11 +59,11 @@ function render() {
     }
   }
   if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000); }
-  S.save(state);
+  salvar();
 }
 function clickHabit(id) {
   const before = S.coins(state);
-  S.toggle(state, id); S.save(state); render();
+  S.toggle(state, id); salvar(); render();
   const after = S.coins(state);
   if (S.checked(state, S.today(), id)) {
     scene.pulse('deposito');
@@ -87,7 +92,7 @@ function loja() {
   sheet.querySelectorAll('.buy').forEach(b => b.onclick = () => {
     const nome = state.rewards.find(r => r.id === b.dataset.id).nome, falta = +b.dataset.preco - S.coins(state);
     if (falta > 0 && !b.dataset.ok) { b.dataset.ok = 1; b.textContent = `ficar devendo ${falta}?`; setTimeout(() => { if (b.isConnected) { delete b.dataset.ok; b.textContent = 'fiado'; } }, 4000); return; }
-    if (S.buy(state, b.dataset.id, true)) { S.save(state); const c = S.coins(state); toast(c < 0 ? `Comprado fiado: ${nome}. Você está devendo ${-c} moeda${c < -1 ? 's' : ''}. 📝` : `Comprado: ${nome}. Aproveita! 🎉`, 3500); render(); loja(); }
+    if (S.buy(state, b.dataset.id, true)) { salvar(); const c = S.coins(state); toast(c < 0 ? `Comprado fiado: ${nome}. Você está devendo ${-c} moeda${c < -1 ? 's' : ''}. 📝` : `Comprado: ${nome}. Aproveita! 🎉`, 3500); render(); loja(); }
   });
   $('#edrec').onclick = () => setup(2);
 }
@@ -124,7 +129,7 @@ function takeSnapshot(force) {
   state.snapshots = state.snapshots.filter(s => s.date !== iso);
   state.snapshots.push({ date: iso, img: scene.snapshot() });
   if (state.snapshots.length > 60) state.snapshots.shift();
-  S.save(state); if (force) toast('Foto guardada.');
+  salvar(); if (force) toast('Foto guardada.');
 }
 
 function info() {
@@ -139,6 +144,7 @@ function info() {
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>A fogueira não é enfeite — é a fronteira.</b> Enquanto ela queima, eles não passam. Nas noites em que ${esc(state.nome)} cumpriu tudo o que se propôs, há lenha seca e o fogo acende. Nas noites em que falhou, não acende: a névoa desce por dois dias e o que mora na mata vem ver de perto. <b>Nada é destruído</b> — a ilha não pune, ela só fica menos segura.</div>
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>Os escudos são as noites em que ele se preparou antes.</b> A cada 7 dias perfeitos sobra lenha, sobra carne seca, sobra estaca na paliçada — e um dia ruim deixa de virar uma noite ruim.</div>
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px">Depois vêm a energia, um rádio, e gente que ouve o chamado e vem visitar. Alguns ficam. Uma pessoa fica pra sempre. E a vila vira cidade — não porque ${esc(state.nome)} é forte, mas porque ele não deixou o fogo apagar duas vezes seguidas.</div>
+    <div class="row" id="linhaConta"><div><div class="t">☁️ Conta e backup</div><div class="d" id="contaEstado">verificando...</div></div><button class="ghost" id="abrirConta">abrir</button></div>
     <div class="t" style="margin:10px 0 4px">📦 Seus hábitos <span class="d">(cada um cumprido = 1 material; todos valem igual)</span></div>
     ${state.habitos.map(h => `<div class="row"><div><div class="t">${h.icone} ${esc(h.nome)}</div><div class="d">${S.descreveFreq(h)} · cumprido ${tot.por[h.id] || 0}×</div></div></div>`).join('')}
     ${ob.atual ? `<div class="row"><div><div class="t">🔨 Obra em andamento: ${esc(ob.atual.nome)}</div><div class="d">${esc(ob.atual.desc)}<br><b>${ob.atual.tem}/${ob.atual.precisa}</b> materiais · faltam ${ob.atual.falta}</div></div></div>` : '<div class="row"><div><div class="t">🏙️ A ilha está completa</div><div class="d">Todas as obras de pé. Os moradores e as ilhas vizinhas não têm fim.</div></div></div>'}
@@ -156,6 +162,78 @@ function info() {
     <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px"><b>É infinito.</b> As ilhas vizinhas sempre estiveram lá; depois do navio (100 dias), a cada 25 dias perfeitos ${esc(state.nome)} ocupa uma (cais + casa). Níveis e moedas não têm teto. Sol, lua e céu seguem o relógio de verdade.</div>
     <button class="ghost" id="edhab" style="margin-top:12px">⚙️ configurar hábitos e recompensas</button>`);
   $('#edhab').onclick = () => setup(1);
+  $('#abrirConta').onclick = conta;
+  N.quemSou().then(q => { const el = $('#contaEstado'); if (el) el.textContent = q ? 'conectado como ' + q : 'não conectada — o progresso só existe neste aparelho'; });
+}
+
+// ---------- conta na nuvem ----------
+async function conta() {
+  const quem = await N.quemSou();
+  if (quem) {
+    const nuvem = await N.baixar();
+    open(head('☁️ Conta') +
+      `<div class="row"><div><div class="t">Conectado como <b>${esc(quem)}</b></div>
+        <div class="d">Último backup: ${nuvem ? new Date(nuvem.quando).toLocaleString('pt-BR') : 'ainda nenhum'}</div></div></div>
+      <div class="d" style="font-size:12px;color:var(--muted);margin-top:8px">O progresso sobe sozinho alguns segundos depois de cada hábito marcado. As fotos da linha do tempo ficam só no aparelho — elas são pesadas demais pra sincronizar.</div>
+      <button class="buy" id="agora" style="margin-top:12px;width:100%">salvar na nuvem agora</button>
+      <button class="ghost" id="sair" style="margin-top:8px;width:100%">sair da conta neste aparelho</button>`);
+    $('#agora').onclick = async () => { const r = await N.subir(state); toast(r.ok ? 'Progresso salvo na nuvem. ☁️' : 'Não consegui salvar: ' + r.erro, 3500); };
+    $('#sair').onclick = async () => {
+      if (!confirm('Sair da conta? O progresso continua neste aparelho.')) return;
+      await N.sair(); close(); toast('Você saiu. O progresso continua aqui no aparelho.', 3500);
+    };
+    return;
+  }
+  open(head('☁️ Conta') +
+    `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">Crie uma conta pra não perder a ilha se trocar de celular ou apagar o app. O jogo continua funcionando offline — a nuvem é só a cópia de segurança.</div>
+     <div class="row"><div class="t">Usuário</div><input class="price" style="width:150px" id="us" autocapitalize="none" autocomplete="username" placeholder="ex: kevin"></div>
+     <div class="row"><div class="t">Senha</div><input class="price" style="width:150px" id="pw" type="password" autocomplete="current-password" placeholder="mínimo 6"></div>
+     <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
+     <button class="buy" id="entrar" style="margin-top:10px;width:100%">entrar</button>
+     <button class="ghost" id="criar" style="margin-top:8px;width:100%">criar conta nova</button>
+     <div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">Só usuário e senha, sem e-mail. Anote a senha: sem e-mail não tem como recuperar.</div>`);
+  const msg = m => $('#msg').textContent = m;
+  const pega = () => ({ u: $('#us').value, p: $('#pw').value });
+  const depois = async (r, novo) => {
+    if (r.erro) { msg(r.erro); return; }
+    await sincronizar(novo);
+    close(); render();
+  };
+  $('#entrar').onclick = async () => {
+    const { u, p } = pega();
+    if (!N.usuarioValido(u)) return msg('usuário precisa de pelo menos 3 letras');
+    if (p.length < 6) return msg('senha precisa de pelo menos 6 caracteres');
+    msg('entrando...'); depois(await N.entrar(u, p), false);
+  };
+  $('#criar').onclick = async () => {
+    const { u, p } = pega();
+    if (!N.usuarioValido(u)) return msg('usuário precisa de pelo menos 3 letras');
+    if (p.length < 6) return msg('senha precisa de pelo menos 6 caracteres');
+    msg('criando...'); depois(await N.criarConta(u, p), true);
+  };
+}
+
+// Decide quem manda quando o aparelho e a nuvem discordam: vence o save com
+// mais dias marcados. As fotos sao sempre as do aparelho (elas nao sobem).
+async function sincronizar(contaNova) {
+  const nuvem = await N.baixar();
+  const aqui = N.tamanho(state);
+  if (!nuvem || !nuvem.dados) {
+    const r = await N.subir(state);
+    toast(r.ok ? (contaNova ? 'Conta criada. Seu progresso foi pro seguro. ☁️' : 'Progresso enviado pra nuvem. ☁️') : 'Conta ok, mas não consegui enviar: ' + r.erro, 4000);
+    return;
+  }
+  const la = N.tamanho(nuvem.dados);
+  if (la > aqui) {
+    const fotos = state.snapshots;
+    Object.keys(state).forEach(k => delete state[k]);
+    Object.assign(state, nuvem.dados, { snapshots: fotos });
+    S.save(state);
+    toast(`Progresso da nuvem recuperado: ${la} dias (aqui tinha ${aqui}). ☁️`, 4500);
+  } else {
+    await N.subir(state);
+    toast(aqui > la ? `Este aparelho estava mais adiantado (${aqui} dias). Mandei ele pra nuvem. ☁️` : 'Tudo sincronizado. ☁️', 4000);
+  }
 }
 
 // ---------- configuracao (primeira vez e edicao) ----------
@@ -191,17 +269,19 @@ function setup(passo = 1) {
       ${draft.rewards.map((r, i) => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}</div>
         ${r.folga !== undefined ? `<div class="d" style="margin-top:4px">folga de: <select class="price" style="width:auto" data-folga="${i}">${draft.habitos.map(h => `<option value="${h.id}" ${r.folga === h.id ? 'selected' : ''}>${h.icone} ${esc(h.nome)}</option>`).join('')}</select></div>` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center"><input class="price" type="number" min="1" value="${r.preco}" data-preco="${i}"><button class="ghost" data-del="${i}">✕</button></div></div>`).join('') || '<div class="d">Nenhuma recompensa ainda.</div>'}
-      <div style="display:flex;gap:8px;margin-top:14px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'começar a ilha 🏝️'}</button></div>`, state.setupDone);
+      <button class="ghost" id="btconta" style="margin-top:14px;width:100%">☁️ conta e backup na nuvem</button>
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'começar a ilha 🏝️'}</button></div>`, state.setupDone);
     sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
     $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco }); setup(2); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.rewards.splice(+b.dataset.del, 1); setup(2); });
     sheet.querySelectorAll('[data-preco]').forEach(i => i.onchange = () => { draft.rewards[+i.dataset.preco].preco = Math.max(1, +i.value || 1); });
     sheet.querySelectorAll('[data-folga]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.folga].folga = s.value; });
+    $('#btconta').onclick = conta;
     $('#volta').onclick = () => setup(1);
     $('#ok').onclick = () => {
       draft.rewards.forEach(r => { if (r.folga !== undefined && !draft.habitos.some(h => h.id === r.folga)) r.folga = (draft.habitos[0] || {}).id; });
       state.nome = draft.nome; state.habitos = draft.habitos; state.rewards = draft.rewards; state.setupDone = true; draft = null;
-      S.save(state); close(); render(); toast(`Bem-vindo à ilha, ${state.nome}. Cada dia conta. 🏝️`, 4000);
+      salvar(); close(); render(); toast(`Bem-vindo à ilha, ${state.nome}. Cada dia conta. 🏝️`, 4000);
     };
   }
 }
@@ -209,8 +289,10 @@ function setup(passo = 1) {
 document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, config: () => setup(1) })[b.dataset.m]());
 
 // ---------- inicio ----------
-if (S.applyShield(state)) { S.save(state); toast('🛡️ Um escudo salvou o dia de ontem.'); }
+if (S.applyShield(state)) { salvar(); toast('🛡️ Um escudo salvou o dia de ontem.'); }
 render();
+// Se o aparelho ja esta logado, confere a nuvem assim que abrir.
+N.sessao().then(s => { if (s) sincronizar(false); });
 if (!state.setupDone) setup(1);
 if (new Date().getDay() === 0) setTimeout(() => takeSnapshot(false), 4000);
 setInterval(render, 60000);
