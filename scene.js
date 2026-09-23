@@ -428,11 +428,12 @@ export function createScene(canvas) {
   const controls = new OrbitControls(camera, canvas);
   controls.target.set(0, 1, 0);
   controls.enableDamping = true; controls.dampingFactor = .07;
-  controls.maxPolarAngle = 1.52;              // quase no nivel do chao
+  controls.maxPolarAngle = 1.44;              // ~82 graus: vista de quem esta na ilha, sem raspar
   controls.minDistance = 7; controls.maxDistance = 260;
   controls.enablePan = true;
   controls.screenSpacePanning = false;        // o pan corre pelo chao: parece avancar, nao flutuar
   controls.panSpeed = 1.3; controls.rotateSpeed = .75; controls.zoomSpeed = .9;
+  controls.zoomToCursor = true;               // a pinca aproxima do que voce esta olhando
   // 1 dedo = so gira em volta da ilha. 2 dedos = avanca na direcao arrastada
   // (e pinca pra aproximar/afastar). No PC: botao esquerdo gira, direito avanca.
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
@@ -445,11 +446,11 @@ export function createScene(canvas) {
   // toque quando foi um dedo so, curto e sem arrastar.
   let idle, dedos = 0, houveMulti = false, tIni = 0, xIni = 0, yIni = 0, ultimoTap = 0;
   canvas.addEventListener('pointerdown', e => {
+    mexeu = true;
     dedos++;
     if (dedos > 1) houveMulti = true;
     if (dedos === 1) { tIni = performance.now(); xIni = e.clientX; yIni = e.clientY; }
-    controls.autoRotate = false; clearTimeout(idle);
-    idle = setTimeout(() => controls.autoRotate = true, 45000);
+    controls.autoRotate = false; clearTimeout(idle);   // assumiu a camera, ela e sua
   });
   canvas.addEventListener('pointercancel', () => { dedos = 0; houveMulti = false; });
   canvas.addEventListener('pointerup', e => {
@@ -601,19 +602,32 @@ export function createScene(canvas) {
 
   // Distancia de camera: no comeco a vila e tudo o que existe, entao ela fica perto.
   // Cada obra levantada afasta um pouco, ate abrir a ilha inteira no fim.
-  let nObras = 0, enquadrou = false, lastAspect = 0;
-  const distDesejada = () => (camera.aspect < 1 ? 52 : 42) + Math.min(nObras, 20) * 3.4;
+  let nObras = -1, enquadrou = false, lastAspect = 0, mexeu = false;
+  // Le o tamanho do canvas na hora, em vez de confiar no camera.aspect: nos primeiros
+  // frames o canvas ainda nao tem tamanho e o aspect fica no valor do construtor (1),
+  // o que fazia a ilha abrir na distancia de modo paisagem no celular.
+  function distDesejada() {
+    const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
+    return (w < h ? 40 : 33) + Math.min(Math.max(nObras, 0), 20) * 3.4;
+  }
   function enquadrar() {
-    const dir = new THREE.Vector3(.60, .50, .72).normalize();
+    const dir = new THREE.Vector3(.60, .44, .72).normalize();   // ~25 graus acima do horizonte
     camera.position.copy(controls.target).add(dir.multiplyScalar(distDesejada()));
     camera.updateProjectionMatrix();
   }
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    if (canvas.width === w * renderer.getPixelRatio() && canvas.height === h * renderer.getPixelRatio()) return;
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
-    // so reenquadra quando a orientacao da tela muda (ou na primeira vez):
-    // depois disso o zoom e do usuario e nao pode ser roubado dele
+    if (!w || !h) return;
+    const mudou = canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio();
+    if (mudou) renderer.setSize(w, h, false);
+    // o aspect precisa ser aplicado SEMPRE, nao so quando o canvas muda de tamanho:
+    // na primeira carga ele ja nasce do tamanho certo, 'mudou' e falso, e o aspect
+    // ficava em 1 (o valor do construtor) -- que era o que fazia a ilha abrir na
+    // distancia de modo paisagem no celular.
+    if (camera.aspect !== w / h) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    // Reenquadra na primeira vez e quando a tela gira. Depois disso a camera e do
+    // usuario. IMPORTANTE: nao pode depender do 'mudou' -- quando o canvas ja nasce
+    // do tamanho certo, o resize nunca dispara e a ilha abria longe demais.
     const retrato = camera.aspect < 1;
     if (!enquadrou || retrato !== lastAspect) { enquadrou = true; lastAspect = retrato; enquadrar(); }
   }
@@ -658,7 +672,7 @@ export function createScene(canvas) {
       camara:   () => buildPredio('prefeitura'),
     };
     const feitas = v.obras || [];
-    if (!enquadrou) nObras = feitas.length;   // antes do primeiro enquadramento
+    if (nObras !== feitas.length && !mexeu) { nObras = feitas.length; enquadrar(); }
     const temCabana = feitas.includes('cabana');
     for (const id of Object.keys(OBRA_LOTE)) {
       const key = 'obra_' + id;
@@ -818,9 +832,11 @@ export function createScene(canvas) {
     const alvo = controls.target;
     const rAlvo = Math.hypot(alvo.x, alvo.z);
     if (rAlvo > R_ILHA) { alvo.x *= R_ILHA / rAlvo; alvo.z *= R_ILHA / rAlvo; }
-    alvo.y = Math.max(0, Math.min(alvo.y, 8));
+    alvo.y = Math.max(.4, Math.min(alvo.y, 8));
+    if (camera.position.y < 1.6) camera.position.y = 1.6;   // nao entra no chao (topo da ilha = .55)
     controls.update(); renderer.render(scene, camera);
   }
+  resize(); enquadrar();          // enquadra antes do primeiro quadro
   requestAnimationFrame(frame);
 
   function snapshot() {
