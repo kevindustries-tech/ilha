@@ -1,28 +1,66 @@
 // Estado do app: habitos personalizaveis, moedas, loja, streaks. Tudo derivado do historico salvo em localStorage.
 const KEY = 'ilha.v2';
 
-// Distritos disponiveis pra cada habito (o que ele constroi na ilha)
-export const DISTRITOS = {
-  academia:   { nome: 'Academia',   desc: 'corpo: treino, cardio, esporte' },
-  capela:     { nome: 'Capela',     desc: 'espírito: devocional, oração, leitura bíblica' },
-  horta:      { nome: 'Horta',      desc: 'saúde: alimentação, água, sono' },
-  biblioteca: { nome: 'Biblioteca', desc: 'mente: estudo, leitura, curso' },
-  oficina:    { nome: 'Oficina',    desc: 'projetos: trabalho, criar, praticar' },
-};
-// Sugestoes na tela de configuracao
+// ---------------------------------------------------------------------------
+// OBRAS DA ILHA
+// Habito NAO constroi predio. Todo habito cumprido vale 1 material, igual, seja
+// treino, devocional ou minoxidil. Bob olha a pilha e levanta a proxima obra da
+// lista, na ordem — o mais essencial primeiro. O usuario nao escolhe nada.
+// 'custo' e ACUMULADO: total de materiais pra aquela obra estar de pe.
+export const OBRAS = [
+  // --- sobreviver ---
+  { id: 'abrigo',   fase: 'Sobreviver', custo: 2,   nome: 'Abrigo de lona',   desc: 'A lona do avião esticada em dois galhos. Chove menos aqui dentro.' },
+  { id: 'fogueira', fase: 'Sobreviver', custo: 5,   nome: 'Fogueira',         desc: 'Fogo pra espantar o frio e cozinhar. Acende nas noites de dia perfeito.' },
+  { id: 'chuva',    fase: 'Sobreviver', custo: 10,  nome: 'Coletor de chuva', desc: 'Uma asa do avião virada pra cima e um tambor embaixo. Água limpa.' },
+  { id: 'horta',    fase: 'Sobreviver', custo: 18,  nome: 'Horta',            desc: 'As primeiras sementes. Comer deixa de depender de sorte.' },
+  { id: 'deposito', fase: 'Sobreviver', custo: 28,  nome: 'Depósito',         desc: 'Telheiro pra madeira e pedra não apodrecerem na chuva.' },
+  // --- viver ---
+  { id: 'cabana',   fase: 'Viver', custo: 42,  nome: 'Cabana',         desc: 'Paredes de verdade e uma porta que fecha. Sai da barraca.' },
+  { id: 'fogao',    fase: 'Viver', custo: 60,  nome: 'Fogão a lenha',  desc: 'Pedra, barro e uma chaminé. Comida quente todo dia.' },
+  { id: 'poco',     fase: 'Viver', custo: 80,  nome: 'Poço',           desc: 'Cavado na rocha. Água o ano inteiro, não só quando chove.' },
+  { id: 'oficina',  fase: 'Viver', custo: 104, nome: 'Oficina',        desc: 'Bancada com as ferramentas do avião. Daqui sai tudo o que vem depois.' },
+  { id: 'curral',   fase: 'Viver', custo: 130, nome: 'Galinheiro',     desc: 'Ovos de manhã. A ilha começa a devolver.' },
+  // --- alcancar ---
+  { id: 'moinho',   fase: 'Alcançar', custo: 160, nome: 'Moinho de vento', desc: 'O vento da ilha virando energia. A primeira luz à noite.' },
+  { id: 'radio',    fase: 'Alcançar', custo: 195, nome: 'Torre de rádio',  desc: 'Feita com a antena do avião. Alguém, em algum lugar, escuta.' },
+  { id: 'pier',     fase: 'Alcançar', custo: 235, nome: 'Píer',            desc: 'Pra quem vier de barco ter onde encostar.' },
+  { id: 'farol',    fase: 'Alcançar', custo: 280, nome: 'Farol',           desc: 'Luz girando a noite toda. Ninguém mais passa reto pela ilha.' },
+  // --- a vila vira cidade ---
+  { id: 'casa1',    fase: 'Cidade', custo: 330, nome: 'Casa de morador', desc: 'A primeira casa que Bob não construiu pra si.' },
+  { id: 'praca',    fase: 'Cidade', custo: 390, nome: 'Praça',           desc: 'Coreto, bancos e um lugar de todo mundo.' },
+  { id: 'posto',    fase: 'Cidade', custo: 455, nome: 'Enfermaria',      desc: 'Cruz na fachada. Agora dá pra adoecer sem medo.' },
+  { id: 'escola',   fase: 'Cidade', custo: 525, nome: 'Escola',          desc: 'Porque chegou gente nova, e gente nova cresce.' },
+  { id: 'mercado',  fase: 'Cidade', custo: 600, nome: 'Mercado',         desc: 'A horta virou feira, e a feira virou loja.' },
+  { id: 'camara',   fase: 'Cidade', custo: 700, nome: 'Prefeitura',      desc: 'Bandeira no topo. Deixou de ser acampamento.' },
+];
+
+// Estado das obras a partir do total de habitos cumpridos (1 habito = 1 material).
+export function obrasEm(materiais) {
+  const feitas = []; let base = 0;
+  for (const o of OBRAS) {
+    if (materiais >= o.custo) { feitas.push(o.id); base = o.custo; continue; }
+    const precisa = o.custo - base, tem = materiais - base;
+    return { feitas, atual: { ...o, tem, precisa, falta: precisa - tem, prog: precisa ? tem / precisa : 1 } };
+  }
+  return { feitas, atual: null };
+}
+export function obraDe(id) { return OBRAS.find(o => o.id === id); }
+
+// Sugestoes na tela de configuracao. Nenhum habito esta ligado a nenhuma obra.
 export const SUGESTOES_HABITOS = [
-  { nome: 'Treino',        icone: '🏋️', distrito: 'academia' },
-  { nome: 'Cardio',        icone: '🏃', distrito: 'academia' },
-  { nome: 'Jiu-jitsu',     icone: '🥋', distrito: 'academia' },
-  { nome: 'Devocional',    icone: '📖', distrito: 'capela' },
-  { nome: 'Oração',        icone: '🙏', distrito: 'capela' },
-  { nome: 'Sem besteira',  icone: '🥗', distrito: 'horta' },
-  { nome: 'Água 2 L',      icone: '💧', distrito: 'horta' },
-  { nome: 'Dormir cedo',   icone: '😴', distrito: 'horta' },
-  { nome: 'Estudar',       icone: '📚', distrito: 'biblioteca' },
-  { nome: 'Ler',           icone: '📕', distrito: 'biblioteca' },
-  { nome: 'Skincare',      icone: '🧴', distrito: 'horta' },
-  { nome: 'Projeto',       icone: '🛠️', distrito: 'oficina' },
+  { nome: 'Treino',       icone: '🏋️' },
+  { nome: 'Cardio',       icone: '🏃' },
+  { nome: 'Jiu-jitsu',    icone: '🥋' },
+  { nome: 'Devocional',   icone: '📖' },
+  { nome: 'Oração',       icone: '🙏' },
+  { nome: 'Sem besteira', icone: '🥗' },
+  { nome: 'Água 2 L',     icone: '💧' },
+  { nome: 'Dormir cedo',  icone: '😴' },
+  { nome: 'Estudar',      icone: '📚' },
+  { nome: 'Ler',          icone: '📕' },
+  { nome: 'Skincare',     icone: '🧴' },
+  { nome: 'Minoxidil',    icone: '🧑' },
+  { nome: 'Projeto',      icone: '🛠️' },
 ];
 export const SUGESTOES_RECOMPENSAS = [
   { nome: 'Esfiha à noite', desc: 'depois do jantar', preco: 15 },
@@ -33,9 +71,9 @@ export const SUGESTOES_RECOMPENSAS = [
   { nome: 'Compra pequena', desc: 'aquele mimo', preco: 60 },
 ];
 const DEFAULT_HABITOS = [
-  { id: 'treino',     nome: 'Treino',       icone: '🏋️', distrito: 'academia', tipo: 'diario', dias: [], vezes: 0 },
-  { id: 'devocional', nome: 'Devocional',   icone: '📖', distrito: 'capela',   tipo: 'diario', dias: [], vezes: 0 },
-  { id: 'comida',     nome: 'Sem besteira', icone: '🥗', distrito: 'horta',    tipo: 'diario', dias: [], vezes: 0 },
+  { id: 'treino',     nome: 'Treino',       icone: '🏋️', tipo: 'diario', dias: [], vezes: 0 },
+  { id: 'devocional', nome: 'Devocional',   icone: '📖', tipo: 'diario', dias: [], vezes: 0 },
+  { id: 'comida',     nome: 'Sem besteira', icone: '🥗', tipo: 'diario', dias: [], vezes: 0 },
 ];
 const DEFAULT_REWARDS = [
   { id: 'esfiha',   nome: 'Esfiha à noite', desc: 'Uma esfiha (ou duas) depois do jantar', preco: 15 },
@@ -50,20 +88,6 @@ export function today(d = new Date()) {
 export function addDays(iso, n) { const [y, m, d] = iso.split('-').map(Number); return today(new Date(y, m - 1, d + n)); }
 export function weekday(iso) { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).getDay(); } // 0 = domingo
 export const uid = () => Math.random().toString(36).slice(2, 8);
-
-// Em qual distrito o habito constroi. O usuario nao escolhe: adivinhamos pelo nome.
-const PALAVRAS = {
-  academia:   ['treino', 'muscul', 'academia', 'cardio', 'corr', 'caminh', 'bike', 'pedal', 'nat', 'luta', 'jiu', 'box', 'esport', 'futebol', 'alongam', 'yoga', 'pilates'],
-  capela:     ['devoc', 'ora', 'bibl', 'igreja', 'culto', 'medit', 'gratid', 'jejum', 'fé'],
-  horta:      ['comida', 'besteira', 'dieta', 'agua', 'água', 'dorm', 'sono', 'fruta', 'verdura', 'saúde', 'saude', 'remédio', 'remedio', 'skincare', 'vitamin', 'açúcar', 'acucar', 'refri'],
-  biblioteca: ['ler', 'leitura', 'livro', 'estud', 'curso', 'ingl', 'faculdade', 'prova', 'aula', 'idioma'],
-  oficina:    ['projeto', 'trabalh', 'código', 'codigo', 'program', 'criar', 'arte', 'música', 'musica', 'praticar', 'negócio', 'negocio'],
-};
-export function adivinhaDistrito(nome) {
-  const n = (nome || '').toLowerCase();
-  for (const [dist, palavras] of Object.entries(PALAVRAS)) if (palavras.some(p => n.includes(p))) return dist;
-  return 'oficina';
-}
 
 export function load() {
   let s = null;
@@ -91,6 +115,8 @@ export function load() {
   s.start = s.start || today();
   s.nome = s.nome || 'Bob';
   s.setupDone = !!s.setupDone;
+  // null = save antigo: nao dispara aviso das obras que ja estavam prontas
+  if (s.obrasVistas === undefined) s.obrasVistas = null;
   // migracao: v1 guardava descanso como days[iso].descanso
   for (const iso of Object.keys(s.days)) { const d = s.days[iso]; if (d.descanso && !d.folga) { d.folga = { treino: true }; delete d.descanso; } }
   return s;
@@ -203,9 +229,7 @@ export const CIDADE = [
 export function cidade(perfect) { return CIDADE.filter(c => perfect >= c.dias).map(c => c.id); }
 export const TECNOLOGIAS = [
   { checks: 9,   id: 'gerador',  nome: 'Gerador de manivela',   desc: 'Feito com o motor de arranque do avião. Primeira luz nos postes.' },
-  { checks: 30,  id: 'moinho',   nome: 'Moinho de vento',       desc: 'Energia o dia todo com o vento da ilha.' },
   { checks: 75,  id: 'solar',    nome: 'Painéis solares',       desc: 'Resgatados da carga do avião. Postes acendem toda noite.' },
-  { checks: 120, id: 'radio',    nome: 'Antena de rádio',       desc: 'Contato com o continente. É assim que as visitas ficam sabendo da ilha.' },
   { checks: 210, id: 'internet', nome: 'Parabólica — internet', desc: 'A ilha entra na rede.' },
 ];
 export function tecnologias(totalChecks) { return TECNOLOGIAS.filter(t => totalChecks >= t.checks).map(t => t.id); }

@@ -27,22 +27,32 @@ function render() {
     return `<div class="hab ${on ? 'on' : ''} ${folga ? 'rest' : ''} ${!due && !on ? 'off' : ''}" data-h="${h.id}"><div class="ico">${h.icone}</div><div class="nm">${esc(h.nome)}</div><div class="st">${sub}</div></div>`;
   }).join('');
   grid.querySelectorAll('.hab').forEach(el => el.onclick = () => clickHabit(el.dataset.h));
-  // distritos pra cena
+  // Recursos: cada habito cumprido = 1 material. Nenhum habito constroi uma obra especifica.
   const done = {}; for (const h of state.habitos) done[h.id] = SIM !== null || S.dayDone(state, iso, h.id);
-  const distritos = state.habitos.map(h => ({ id: h.id, tipo: h.distrito, ...S.level(tot.por[h.id] || 0), done: done[h.id] }));
-  const corpo = state.habitos.filter(h => h.distrito === 'academia' || h.distrito === 'horta').reduce((a, h) => a + (tot.por[h.id] || 0), 0);
   const folgaAlguma = state.habitos.some(h => S.folgaHoje(state, h.id));
-  const dep = distritos[0] ? { toras: Math.round(distritos[0].prog * 7), madeiraHoje: distritos[0].done } : { toras: 0 };
-  Object.assign(dep, distritos[1] ? { pedras: Math.round(distritos[1].prog * 7), pedraHoje: distritos[1].done } : { pedras: 0 });
+  const obras = S.obrasEm(tot.checks);
+  const feitosHoje = state.habitos.filter(h => S.checked(state, iso, h.id)).length;
+  // O deposito mostra o que ja foi juntado pra obra em andamento (metade tora, metade pedra)
+  const tem = obras.atual ? obras.atual.tem : 0;
+  const dep = { toras: Math.ceil(tem / 2), pedras: Math.floor(tem / 2), madeiraHoje: feitosHoje > 0, pedraHoje: feitosHoje > 1 };
   scene.apply({
     hour: HORA !== null ? +HORA : new Date().getHours() + new Date().getMinutes() / 60,
-    distritos, deposito: dep, done, perfectToday: SIM !== null || S.isPerfect(state, iso), descanso: folgaAlguma,
-    fit: S.level(corpo).lvl + corpo / 14,
+    obras: obras.feitas, obraAtual: obras.atual, deposito: dep, done,
+    perfectToday: SIM !== null || S.isPerfect(state, iso), descanso: folgaAlguma,
+    fit: S.level(tot.checks).lvl + tot.checks / 14,
     compras: state.purchases.filter(p => p.date === iso).map(p => (state.rewards.find(r => r.id === p.id) || {}).nome || ''),
     unlocked: { birds: tot.perfect >= 7, farol: tot.perfect >= 30, ponte: tot.perfect >= 60, vizinha: tot.perfect >= 60, navio: tot.perfect >= 100, montanha: tot.perfect >= 200 },
     weather: SIM !== null ? { clear: +SIM >= 7, fog: false } : S.weather(state),
-    habitantes: S.habitantes(tot.perfect), tecnologias: S.tecnologias(tot.checks), ilhasExtras: S.ilhasExtras(tot.perfect), cidade: S.cidade(tot.perfect),
+    habitantes: S.habitantes(tot.perfect), tecnologias: S.tecnologias(tot.checks), ilhasExtras: S.ilhasExtras(tot.perfect),
   });
+  if (SIM === null) {
+    const primeira = !state.obrasVistas;
+    state.obrasVistas = state.obrasVistas || [];
+    for (const id of obras.feitas) if (!state.obrasVistas.includes(id)) {
+      state.obrasVistas.push(id);
+      if (!primeira) { const o = S.obraDe(id); toast(`🔨 ${state.nome} terminou: ${o.nome}. ${o.desc}`, 5200); }
+    }
+  }
   if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000); }
   S.save(state);
 }
@@ -51,8 +61,7 @@ function clickHabit(id) {
   S.toggle(state, id); S.save(state); render();
   const after = S.coins(state);
   if (S.checked(state, S.today(), id)) {
-    const h = state.habitos.find(x => x.id === id);
-    scene.pulse(h.distrito === 'academia' ? 'personagem' : 'dist_' + h.id);
+    scene.pulse('deposito');
     if (S.isPerfect(state, S.today())) toast(`✨ Dia perfeito! +${after - before} moedas. A fogueira acende hoje à noite.`);
     else toast(`+${after - before} moeda${after - before > 1 ? 's' : ''}`);
   }
@@ -120,19 +129,23 @@ function takeSnapshot(force) {
 
 function info() {
   const tot = S.totals(state);
+  const ob = S.obrasEm(tot.checks);
   const hab = S.habitantes(tot.perfect).map(h => h.id), tec = S.tecnologias(tot.checks);
   const lista = (arr, key, unit, on) => arr.map(x => `<div class="row" style="opacity:${on(x) ? 1 : .45}"><div><div class="t">${on(x) ? '✅' : '🔒'} ${esc(x.nome)}</div><div class="d">${esc(x.desc)}</div></div><div class="d" style="white-space:nowrap">${x[key]} ${unit}</div></div>`).join('');
   open(head(`🏝️ A ilha de ${esc(state.nome)}`) + `
-    <div class="d" style="font-size:13px;color:var(--txt);line-height:1.5;margin-bottom:10px"><b>${esc(state.nome)}</b> era a única pessoa a bordo quando o avião caiu nesta ilha. Sobrou a fuselagem na praia, uma lona, ferramentas — e um gênio com tempo de sobra. Podia ter ido embora; ficou. Tira <b>madeira da floresta</b> e <b>pedra da pedreira</b> e empilha no <b>depósito</b> do centro: cada hábito cumprido é uma tora ou uma pedra a mais; quando a pilha fecha 7, vira um andar. Depois gera energia, monta um rádio e chama gente pra visitar. Alguns ficam. Uma pessoa fica pra sempre. E a vila vira cidade.</div>
-    <div class="t" style="margin:10px 0 4px">📦 O que cada hábito constrói</div>
-    ${state.habitos.map(h => `<div class="row"><div><div class="t">${h.icone} ${esc(h.nome)} → ${S.DISTRITOS[h.distrito].nome}</div><div class="d">${S.descreveFreq(h)} · nível ${S.level(tot.por[h.id] || 0).lvl}, ${Math.round(S.level(tot.por[h.id] || 0).prog * 7)}/7 pro próximo</div></div></div>`).join('')}
+    <div class="d" style="font-size:13px;color:var(--txt);line-height:1.5;margin-bottom:10px"><b>${esc(state.nome)}</b> era a única pessoa a bordo quando o avião caiu nesta ilha. Sobrou a fuselagem na praia, uma lona, ferramentas — e um gênio com tempo de sobra. Podia ter ido embora; ficou. Tira <b>madeira da floresta</b> e <b>pedra da pedreira</b> e empilha no <b>depósito</b> do centro: <b>qualquer</b> hábito cumprido vira uma tora ou uma pedra — treino, oração ou passar minoxidil valem exatamente o mesmo. Ele é o engenheiro: olha a pilha e levanta a próxima obra da lista, do abrigo de lona até a prefeitura, sempre o mais essencial primeiro. Depois gera energia, monta um rádio e chama gente pra visitar. Alguns ficam. Uma pessoa fica pra sempre. E a vila vira cidade.</div>
+    <div class="t" style="margin:10px 0 4px">📦 Seus hábitos <span class="d">(cada um cumprido = 1 material; todos valem igual)</span></div>
+    ${state.habitos.map(h => `<div class="row"><div><div class="t">${h.icone} ${esc(h.nome)}</div><div class="d">${S.descreveFreq(h)} · cumprido ${tot.por[h.id] || 0}×</div></div></div>`).join('')}
+    ${ob.atual ? `<div class="row"><div><div class="t">🔨 Obra em andamento: ${esc(ob.atual.nome)}</div><div class="d">${esc(ob.atual.desc)}<br><b>${ob.atual.tem}/${ob.atual.precisa}</b> materiais · faltam ${ob.atual.falta}</div></div></div>` : '<div class="row"><div><div class="t">🏙️ A ilha está completa</div><div class="d">Todas as obras de pé. Os moradores e as ilhas vizinhas não têm fim.</div></div></div>'}
     <div class="row"><div><div class="t">🔥 Fogueira · 🌤️ Clima · 🛡️ Escudo</div><div class="d">Fogueira acende à noite nos dias perfeitos (todos os hábitos do dia). 7+ dias seguidos: céu limpo e pássaros; falhou: névoa por 2 dias (nada é destruído). A cada 7 dias perfeitos acumulados, 1 escudo salva um dia falho.</div></div></div>
+    <div class="t" style="margin:14px 0 4px">🏗️ As obras <span class="d">(materiais juntados: ${tot.checks})</span></div>
+    ${['Sobreviver','Viver','Alcançar','Cidade'].map(f => `<div class="d" style="margin:10px 0 2px;text-transform:uppercase;letter-spacing:.08em;font-size:11px;color:var(--muted)">${f}</div>` +
+      S.OBRAS.filter(o => o.fase === f).map(o => { const ok = ob.feitas.includes(o.id), agora = ob.atual && ob.atual.id === o.id;
+        return `<div class="row" style="opacity:${ok ? 1 : agora ? .9 : .4}"><div><div class="t">${ok ? '✅' : agora ? '🔨' : '🔒'} ${esc(o.nome)}</div><div class="d">${esc(o.desc)}</div></div><div class="d" style="white-space:nowrap">${agora ? ob.atual.tem + '/' + ob.atual.precisa : o.custo}</div></div>`; }).join('')).join('')}
     <div class="t" style="margin:14px 0 4px">👨‍👩‍👧 Moradores <span class="d">(dias perfeitos acumulados: ${tot.perfect})</span></div>
     ${lista(S.HABITANTES, 'dias', 'dias', h => hab.includes(h.id))}
     <div class="t" style="margin:14px 0 4px">⚡ Tecnologia <span class="d">(hábitos cumpridos no total: ${tot.checks})</span></div>
     ${lista(S.TECNOLOGIAS, 'checks', 'hábitos', t => tec.includes(t.id))}
-    <div class="t" style="margin:14px 0 4px">🏙️ Cidade <span class="d">(dias perfeitos)</span></div>
-    ${lista(S.CIDADE, 'dias', 'dias', c => tot.perfect >= c.dias)}
     <div class="t" style="margin:14px 0 4px">🌫️ Horizonte <span class="d">(dias perfeitos)</span></div>
     ${lista(S.MILESTONES.map(m => ({ nome: m.desbloqueia, desc: m.nome + ' · +' + m.bonus + ' moedas', dias: m.dias })), 'dias', 'dias', m => tot.perfect >= m.dias)}
     <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px"><b>É infinito.</b> As ilhas vizinhas sempre estiveram lá; depois do navio (100 dias), a cada 25 dias perfeitos ${esc(state.nome)} ocupa uma (cais + casa). Níveis e moedas não têm teto. Sol, lua e céu seguem o relógio de verdade.</div>
@@ -148,10 +161,10 @@ function setup(passo = 1) {
   if (passo === 1) {
     open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de 2</span></h2>
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
-      <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Cada hábito constrói um prédio na ilha. Toque numa sugestão pra adicionar, ou crie o seu.</div>
+      <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
       <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
       <div id="lista">${draft.habitos.map((h, i) => `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
-        <div style="display:flex;justify-content:space-between;align-items:center"><div class="t">${h.icone} ${esc(h.nome)} <span class="d">→ ${S.DISTRITOS[h.distrito].nome}</span></div><button class="ghost" data-del="${i}">remover</button></div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="t">${h.icone} ${esc(h.nome)}</div><button class="ghost" data-del="${i}">remover</button></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <select class="price" style="width:auto" data-tipo="${i}"><option value="diario" ${h.tipo === 'diario' ? 'selected' : ''}>todo dia</option><option value="dias" ${h.tipo === 'dias' ? 'selected' : ''}>dias fixos</option><option value="semana" ${h.tipo === 'semana' ? 'selected' : ''}>X vezes por semana</option></select>
           ${h.tipo === 'dias' ? N.map((n, d) => `<button class="ghost" data-dia="${i}:${d}" style="${h.dias.includes(d) ? 'background:var(--ok);color:#053' : ''}">${n}</button>`).join('') : ''}
@@ -159,8 +172,8 @@ function setup(passo = 1) {
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
     $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
-    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, distrito: s.distrito, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
-    $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), distrito: S.adivinhaDistrito(nome), tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); };
+    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
+    $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.habitos.splice(+b.dataset.del, 1); setup(1); });
     sheet.querySelectorAll('[data-tipo]').forEach(s => s.onchange = () => { const h = draft.habitos[+s.dataset.tipo]; h.tipo = s.value; if (h.tipo === 'dias' && !h.dias.length) h.dias = [1, 3, 5]; setup(1); });
     sheet.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => { const [i, d] = b.dataset.dia.split(':').map(Number); const h = draft.habitos[i]; h.dias = h.dias.includes(d) ? h.dias.filter(x => x !== d) : [...h.dias, d]; setup(1); });
