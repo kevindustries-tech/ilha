@@ -293,7 +293,7 @@ const SKY = [[0, 0x0a1630], [5, 0x1c2b5a], [6.5, 0xf29a6b], [8, 0x9fd3ff], [12, 
 // antigas valem), e ao redor cresce o mundo selvagem ate raio ~46: praia,
 // mata fechada, serra e um lago. Os bichos vivem la e nao chegam na vila.
 // ===========================================================================
-const R_VILA = 16, R_ILHA = 46;
+const R_VILA = 16, R_ILHA = 78;
 
 // Mata fechada em InstancedMesh: centenas de arvores sem matar o celular.
 function florestaDensa(pontos) {
@@ -346,16 +346,20 @@ function bicho(cfg) {
 }
 // Cada bicho mora numa regiao e nunca entra na vila (raio minimo).
 const FAUNA = [
-  { id: 'veado1',  corpo: 0xa9764a, cabeca: 0xbb8757, esc: 1.0, chifre: .5, cauda: .25, vel: 1.9, casa: [26, 26], raio: 11 },
-  { id: 'veado2',  corpo: 0x9c6b42, cabeca: 0xb07c50, esc: .9,  chifre: .45, cauda: .25, vel: 2.0, casa: [-30, 16], raio: 10 },
-  { id: 'javali',  corpo: 0x4f4034, esc: .8, pescoco: .02, cauda: .2, vel: 1.6, casa: [-26, -12], raio: 9 },
-  { id: 'javali2', corpo: 0x5a4a3c, esc: .7, pescoco: .02, cauda: .2, vel: 1.5, casa: [22, -16], raio: 9 },
-  { id: 'cabra1',  corpo: 0xe8e4dc, cabeca: 0xd9d4ca, esc: .8, chifre: .3, cauda: .18, vel: 1.4, casa: [-12, -27], raio: 7 },
-  { id: 'cabra2',  corpo: 0xdcd6cc, cabeca: 0xcac4ba, esc: .75, chifre: .28, cauda: .18, vel: 1.3, casa: [6, -26], raio: 6 },
-  { id: 'capivara',corpo: 0x8a6240, esc: .85, pescoco: .05, cauda: 0, vel: 1.0, casa: [30, 21], raio: 5 },
-  { id: 'capivara2',corpo: 0x7d5838, esc: .75, pescoco: .05, cauda: 0, vel: .9, casa: [33, 6], raio: 5 },
-  { id: 'tartaruga',corpo: 0x4e7c59, cabeca: 0x6f9a6a, esc: .6, pescoco: .05, vel: .35, casa: [-6, 43], raio: 4 },
-  { id: 'tartaruga2',corpo: 0x44704e, cabeca: 0x659060, esc: .55, pescoco: .05, vel: .3, casa: [40, -20], raio: 4 },
+  { id: 'veado1',  corpo: 0xa9764a, cabeca: 0xbb8757, esc: 1.0, chifre: .5, cauda: .25, vel: 1.9, casa: [40, 44], raio: 16 },
+  { id: 'veado2',  corpo: 0x9c6b42, cabeca: 0xb07c50, esc: .9,  chifre: .45, cauda: .25, vel: 2.0, casa: [-48, 26], raio: 15 },
+  { id: 'veado3',  corpo: 0xb27f52, cabeca: 0xc28f60, esc: .95, chifre: .48, cauda: .25, vel: 1.9, casa: [-20, 52], raio: 14 },
+  { id: 'javali',  corpo: 0x4f4034, esc: .8, pescoco: .02, cauda: .2, vel: 1.6, casa: [-44, -18], raio: 13 },
+  { id: 'javali2', corpo: 0x5a4a3c, esc: .7, pescoco: .02, cauda: .2, vel: 1.5, casa: [40, -22], raio: 13 },
+  { id: 'cabra1',  corpo: 0xe8e4dc, cabeca: 0xd9d4ca, esc: .8, chifre: .3, cauda: .18, vel: 1.4, casa: [-16, -40], raio: 10 },
+  { id: 'cabra2',  corpo: 0xdcd6cc, cabeca: 0xcac4ba, esc: .75, chifre: .28, cauda: .18, vel: 1.3, casa: [8, -38], raio: 9 },
+  { id: 'capivara',corpo: 0x8a6240, esc: .85, pescoco: .05, cauda: 0, vel: 1.0, casa: [34, 34], raio: 7 },
+  { id: 'capivara2',corpo: 0x7d5838, esc: .75, pescoco: .05, cauda: 0, vel: .9, casa: [44, 18], raio: 7 },
+  { id: 'tartaruga',corpo: 0x4e7c59, cabeca: 0x6f9a6a, esc: .6, pescoco: .05, vel: .35, casa: [-8, 70], raio: 5 },
+  { id: 'tartaruga2',corpo: 0x44704e, cabeca: 0x659060, esc: .55, pescoco: .05, vel: .3, casa: [64, -30], raio: 5 },
+  // O PREDADOR. 'casa' e so o ponto de partida: no frame() ele e puxado pra perto da
+  // clareira quando a fogueira nao acende, e empurrado pra mata quando acende.
+  { id: 'onca', corpo: 0x6b5a2e, cabeca: 0x7a6836, esc: 1.05, pescoco: .12, cauda: .85, vel: 2.4, casa: [-40, 40], raio: 13, predador: true },
 ];
 
 // ---------- obras que ainda nao existiam ----------
@@ -397,6 +401,29 @@ export function buildGalinheiro() {
     g.add(box(.05, .06, .05, 0xdc2626, x + .06, 1.0, 1.08)); }
   return g;
 }
+export function buildArmadilha() {
+  const g = new THREE.Group();
+  const cx = box(1.1, .75, 1.1, 0x8b5a2b, 0, .35, 0);            // caixote escorado
+  cx.rotation.z = -.42; cx.rotation.y = .3; g.add(cx);
+  g.add(cyl(.045, .055, .8, C.wood, .52, 0, .1, 5));              // graveto que escora
+  for (let i = 0; i < 5; i++) g.add(sphere(.07, 0xd9a441, -.35 + i * .16, .05, .45));   // isca
+  g.add(box(.9, .03, .06, C.wood, -.1, .0, -.7));
+  return g;
+}
+export function buildPalicada() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 17; i++) {                                   // estacas apontadas
+    const a = -1.15 + i * .145, r = 5.4;
+    const e = cyl(.0, .15, 1.9, 0x7c4a1e, Math.cos(a) * r, 0, Math.sin(a) * r, 6);
+    e.rotation.z = Math.sin(a) * .09; e.rotation.x = -Math.cos(a) * .09; g.add(e);
+  }
+  for (const h of [.55, 1.25]) for (let i = 0; i < 16; i++) {      // travessas
+    const a = -1.15 + i * .145 + .072, r = 5.4;
+    const tr = box(.9, .09, .07, C.wood, Math.cos(a) * r, h, Math.sin(a) * r);
+    tr.rotation.y = -a; g.add(tr);
+  }
+  return g;
+}
 // Obra em andamento: andaime + o tanto de material que ja subiu.
 export function buildAndaime(prog) {
   const g = new THREE.Group();
@@ -406,6 +433,114 @@ export function buildAndaime(prog) {
   const n = Math.round(prog * 6);
   for (let i = 0; i < n; i++) { const row = Math.floor(i / 3), col = i % 3; g.add(box(.55, .28, .95, i % 2 ? C.stone : C.wood, -.6 + col * .6, row * .3, 0)); }
   const pl = box(.5, .34, .04, 0xf59e0b, 0, h + .45, .62, { emissive: 0x7c4a00, emissiveIntensity: .35 }); pl.name = 'placa'; g.add(pl);
+  return g;
+}
+
+// ===========================================================================
+// TERRENO
+// A ilha deixou de ser uma pilha de cilindros: agora e uma malha gerada por uma
+// funcao de altura, com costa irregular, colinas e serra. A vila do Bob fica num
+// planalto chapado em y = .55, entao todas as coordenadas antigas continuam
+// valendo e as obras assentam certo.
+// ===========================================================================
+function ruidoSuave(x, z) {
+  return Math.sin(x * .085 + Math.cos(z * .062) * 2.1) * Math.cos(z * .073 + Math.sin(x * .049) * 1.7)
+       + Math.sin(x * .031 + 1.7) * Math.cos(z * .028 - .8) * .8;
+}
+// Raio da costa por angulo: e isso que tira a cara de disco.
+function costaEm(a, R, s) {
+  return R * (1 + Math.sin(a * 2 + s) * .14 + Math.sin(a * 3.3 + s * 2.1) * .085
+                + Math.sin(a * 5.1 + s * .7) * .05 + Math.sin(a * 7.7 + s * 3.3) * .028);
+}
+// Serra: dois cumes alongados ao norte, dentro do proprio relevo.
+const CUMES = [[-10, -54, 30, 25], [14, -48, 24, 19], [-34, -40, 20, 14]];
+const LAGO = [34, 26], LAGO_R = 11;
+
+function alturaIlha(x, z) {
+  const r = Math.hypot(x, z), a = Math.atan2(z, x);
+  const costa = costaEm(a, R_ILHA, 0);
+  if (r >= costa) return -.9 - (r - costa) * .09;          // vai pro fundo do mar
+  const praia = 7.5;
+  const dentro = Math.min(1, (costa - r) / praia);          // 0 na beira, 1 depois da areia
+  let h = dentro * dentro * 2.4 + (ruidoSuave(x, z) + 1.4) * 1.5 * dentro;
+  for (const [cx, cz, raio, alt] of CUMES) {
+    const d = Math.hypot(x - cx, z - cz);
+    if (d < raio) h += Math.pow(1 - d / raio, 2.2) * alt;
+  }
+  const dl = Math.hypot(x - LAGO[0], z - LAGO[1]);          // bacia do lago
+  if (dl < LAGO_R + 5) h -= Math.pow(Math.max(0, 1 - dl / (LAGO_R + 5)), 1.6) * (h + 3.2);
+  // planalto da vila: chapado, com transicao suave ate o relevo
+  if (r < R_VILA + 16) {
+    const k = Math.min(1, Math.max(0, (r - R_VILA) / 16));
+    h = .55 * (1 - k * k) + h * (k * k);
+  }
+  return h;
+}
+
+function corDoTerreno(alt, dentro) {
+  const c = new THREE.Color();
+  if (dentro < .30) return c.setHex(0xe3d5a2);                       // areia
+  if (dentro < .42) return c.setHex(0xe3d5a2).lerp(new THREE.Color(0x63b263), (dentro - .30) / .12);
+  if (alt > 21) return c.setHex(0xf2f6fb);                           // neve
+  if (alt > 15) return c.setHex(0x8b8f99).lerp(new THREE.Color(0xf2f6fb), (alt - 15) / 6);
+  if (alt > 8)  return c.setHex(0x4e8a4e).lerp(new THREE.Color(0x8b8f99), (alt - 8) / 7);
+  return c.setHex(0x63b263).lerp(new THREE.Color(0x4e8a4e), Math.min(1, alt / 8));
+}
+
+// Malha em grade polar: aneis x setores. Devolve um Mesh com cor por vertice.
+function malhaTerreno(R, semente, fAlt, nseg = 128, nring = 56) {
+  const pos = [], cor = [], idx = [], c = new THREE.Color();
+  for (let i = 0; i <= nring; i++) {
+    for (let j = 0; j < nseg; j++) {
+      const a = j / nseg * Math.PI * 2;
+      const borda = costaEm(a, R, semente) * 1.18;
+      const r = borda * (i / nring);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      const y = fAlt(x, z);
+      const dentro = Math.min(1, Math.max(0, (costaEm(a, R, semente) - r) / 7.5));
+      pos.push(x, y, z);
+      const k = corDoTerreno(y, dentro); cor.push(k.r, k.g, k.b);
+    }
+  }
+  for (let i = 0; i < nring; i++) for (let j = 0; j < nseg; j++) {
+    const j2 = (j + 1) % nseg;
+    const p = i * nseg, q = (i + 1) * nseg;
+    // sentido invertido de proposito: com a ordem 'natural' da grade polar as normais
+    // apontam pra baixo e o terreno some (o material descarta faces de costas)
+    idx.push(p + j, q + j2, q + j, p + j, p + j2, q + j2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cor, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: .95 }));
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+// Ilha vizinha de verdade: mesmo gerador, menor, com o proprio relevo e mata.
+function ilhaVizinhaGrande(i) {
+  const g = new THREE.Group();
+  const R = 20 + (i % 3) * 5, s = i * 1.7 + .4;
+  const alt = (x, z) => {
+    const r = Math.hypot(x, z), a = Math.atan2(z, x), costa = costaEm(a, R, s);
+    if (r >= costa) return -.9 - (r - costa) * .09;
+    const dentro = Math.min(1, (costa - r) / 6.5);
+    return dentro * dentro * 2.2 + (ruidoSuave(x * 1.7 + i * 40, z * 1.7) + 1.4) * (1.6 + (i % 2) * 2.4) * dentro;
+  };
+  g.add(malhaTerreno(R, s, alt, 72, 30));
+  const arv = [];
+  for (let k = 0; k < 70; k++) {
+    const a = Math.random() * 6.28, r = Math.random() * R * .82;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alt(x, z);
+    if (y > 1.1) arv.push([x, y - .2, z, .7 + Math.random() * .6, Math.random() * 6.28]);
+  }
+  if (arv.length) g.add(florestaDensa(arv));
+  for (let k = 0; k < 5; k++) {
+    const a = Math.random() * 6.28, r = R * (.72 + Math.random() * .2);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alt(x, z);
+    if (y > .2) { const p = palm(x, z, Math.random() * 6.28); p.position.y = y - .1; g.add(p); }
+  }
   return g;
 }
 
@@ -422,14 +557,16 @@ export function createScene(canvas) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;   // tira o 'lavado' das cores chapadas
+  renderer.toneMappingExposure = 1.25;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, 1, .1, 900);
+  const camera = new THREE.PerspectiveCamera(50, 1, .1, 1600);
   camera.position.set(52, 38, 60);
   const controls = new OrbitControls(camera, canvas);
   controls.target.set(0, 1, 0);
   controls.enableDamping = true; controls.dampingFactor = .07;
   controls.maxPolarAngle = 1.44;              // ~82 graus: vista de quem esta na ilha, sem raspar
-  controls.minDistance = 7; controls.maxDistance = 260;
+  controls.minDistance = 7; controls.maxDistance = 380;
   controls.enablePan = true;
   controls.screenSpacePanning = false;        // o pan corre pelo chao: parece avancar, nao flutuar
   controls.panSpeed = 1.3; controls.rotateSpeed = .75; controls.zoomSpeed = .9;
@@ -466,62 +603,125 @@ export function createScene(canvas) {
     else ultimoTap = agora;
   });
 
+  // Cupula de ceu: gradiente do horizonte ao zenite. Fica atras de tudo (renderOrder -1,
+  // sem escrever profundidade), entao sol, lua e estrelas continuam aparecendo por cima.
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { zenite: { value: new THREE.Color(0x2f6fb5) }, horizonte: { value: new THREE.Color(0x9fd0f5) } },
+    vertexShader: 'varying float alt; void main(){ alt = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'uniform vec3 zenite; uniform vec3 horizonte; varying float alt;' +
+      'void main(){ gl_FragColor = vec4(mix(horizonte, zenite, smoothstep(-0.08, 0.62, alt)), 1.0); }',
+  });
+  const skyDome = new THREE.Mesh(new THREE.SphereGeometry(760, 32, 18), skyMat);
+  skyDome.renderOrder = -1; skyDome.frustumCulled = false; scene.add(skyDome);
+
+  // Nuvens: tufos de esferas achatadas que giram devagar em volta da ilha.
+  const nuvens = new THREE.Group(); scene.add(nuvens);
+  for (let i = 0; i < 11; i++) {
+    const n = new THREE.Group();
+    const mt = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, roughness: 1, transparent: true, opacity: .92 });
+    for (let k = 0; k < 3 + Math.floor(Math.random() * 3); k++) {
+      const b = new THREE.Mesh(new THREE.IcosahedronGeometry(3.2 + Math.random() * 2.6, 0), mt);
+      b.position.set((Math.random() - .5) * 11, (Math.random() - .5) * 1.6, (Math.random() - .5) * 6);
+      b.scale.y = .52; n.add(b);
+    }
+    n.userData = { r: 62 + Math.random() * 78, a: Math.random() * 6.28, y: 38 + Math.random() * 26, v: .006 + Math.random() * .012 };
+    nuvens.add(n);
+  }
+
   const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x3a5a2a, .6); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.06;   // ilha grande = texel grande = acne de sombra
-  Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 320 }); scene.add(sun);
+  Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 110, bottom: -110, near: 1, far: 460 }); scene.add(sun);
   const moon = new THREE.DirectionalLight(0x9db4ff, 0); scene.add(moon);
   const sunMesh = sphere(5, 0xffe27a, 0, 0, 0, { emissive: 0xffd24d, emissiveIntensity: 1.5, fog: false }); sunMesh.castShadow = false; sunMesh.receiveShadow = false; scene.add(sunMesh);
   const moonMesh = sphere(3.4, 0xdfe7ff, 0, 0, 0, { emissive: 0xaebcff, emissiveIntensity: .9, fog: false }); moonMesh.castShadow = false; moonMesh.receiveShadow = false; scene.add(moonMesh);
   // estrelas
   const sg = new THREE.BufferGeometry(); const sp = [];
-  for (let i = 0; i < 500; i++) { const v = new THREE.Vector3().randomDirection(); if (v.y < .05) continue; sp.push(v.x * 300, v.y * 300, v.z * 300); }
+  for (let i = 0; i < 500; i++) { const v = new THREE.Vector3().randomDirection(); if (v.y < .05) continue; sp.push(v.x * 560, v.y * 560, v.z * 560); }
   sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
   const stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, transparent: true, opacity: 0 })); scene.add(stars);
 
   // agua
-  const wg = new THREE.PlaneGeometry(620, 620, 90, 90); wg.rotateX(-Math.PI / 2);
+  const wg = new THREE.PlaneGeometry(1100, 1100, 110, 110); wg.rotateX(-Math.PI / 2);
   const water = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ color: C.water, flatShading: true, roughness: .5, metalness: .1, transparent: true, opacity: .93 }));
   water.receiveShadow = true; scene.add(water);
   const wpos = wg.attributes.position, wbase = Float32Array.from(wpos.array);
 
-  // ilha: o miolo e a vila do Bob (raio 16, coordenadas antigas preservadas);
-  // fora dele o mundo selvagem ate raio 46.
+  // A ilha e uma malha gerada (ver alturaIlha): costa irregular, colinas, serra e
+  // um planalto chapado no miolo onde fica a vila do Bob.
   const island = new THREE.Group(); scene.add(island);
-  island.add(cyl(R_ILHA + 3.5, R_ILHA + 7, 2.6, C.sand, 0, -2.2, 0, 26));      // praia
-  island.add(cyl(R_ILHA, R_ILHA + 2.4, .6, C.grass, 0, -.25, 0, 26));          // campo
-  island.add(cyl(R_ILHA - 1.2, R_ILHA - .2, .32, C.grass2, 0, .2, 0, 26));   // topo .52 (a clareira fica em .55)
-  island.add(cyl(R_VILA + 1.0, R_VILA + 2.2, .13, 0x63bd63, 0, .42, 0, 24));   // clareira da vila (topo .55)
-  for (let i = 0; i < 46; i++) { const a = i * .86, r = R_ILHA + 1.5 + Math.random() * 4; const rk = sphere(.3 + Math.random() * .7, C.rock, Math.cos(a) * r, .1, Math.sin(a) * r); rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk); }
-  for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, r = R_ILHA - 2 + Math.random() * 5; island.add(palm(Math.cos(a) * r, Math.sin(a) * r, Math.random() * 6.28)); }
-  island.add(palm(14.4, 6.8, 1), palm(-12.6, 9.2, 2.4), palm(-14.9, -4.9, 4), palm(11.9, -11.3, 5.5), palm(2.2, 15.1, .8), palm(-5.5, -14.5, 3));
+  island.add(malhaTerreno(R_ILHA, 0, alturaIlha, 144, 62));
 
-  // SERRA — norte/noroeste, bem longe da vila
-  const serraG = serra([[-14, -34, 7.5, 15, .3], [-4, -39, 9, 19, .9], [8, -35, 6.5, 13, 1.7], [-25, -27, 6, 11, 2.4], [18, -30, 5, 9.5, .6], [1, -28, 4.2, 7.5, 1.2], [-20, -37, 5.5, 10, 2]]);
-  serraG.position.y = .5; island.add(serraG);
+  // ESPUMA: anel claro onde a agua encontra a areia (acompanha a costa irregular)
+  {
+    const pts = [], n = 128;
+    for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2, r = costaEm(a, R_ILHA, 0); pts.push(Math.cos(a) * r, .05, Math.sin(a) * r); }
+    const eg = new THREE.BufferGeometry(); eg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const anel = new THREE.LineLoop(eg, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .5 }));
+    anel.name = 'espumaLinha'; scene.add(anel);
+  }
 
-  // LAGO — leste
-  const LAGO = [30, 14], LAGO_R = 8.5;
-  const lago = new THREE.Mesh(new THREE.CylinderGeometry(LAGO_R, LAGO_R * .9, .5, 22), new THREE.MeshStandardMaterial({ color: 0x3b9ad6, flatShading: true, roughness: .35, metalness: .15, transparent: true, opacity: .9 }));
-  lago.position.set(LAGO[0], .5, LAGO[1]); lago.receiveShadow = true;
-  island.add(cyl(LAGO_R + 1.8, LAGO_R + 2.6, .55, 0xdccf9e, LAGO[0], .16, LAGO[1], 22));
-  island.add(lago);
+  // LAGO, assentado na bacia que a funcao de altura cavou
+  const lago = new THREE.Mesh(new THREE.CylinderGeometry(LAGO_R, LAGO_R * .88, .4, 28),
+    new THREE.MeshStandardMaterial({ color: 0x3b9ad6, flatShading: true, roughness: .3, metalness: .15, transparent: true, opacity: .92 }));
+  lago.position.set(LAGO[0], .55, LAGO[1]); lago.receiveShadow = true; island.add(lago);
 
-  // MATA FECHADA — anel entre a vila e a costa, desviando da serra e do lago
+  // PEDRAS espalhadas pela costa, assentadas no relevo
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * 6.28, r = costaEm(a, R_ILHA, 0) * (.93 + Math.random() * .12);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    const rk = sphere(.35 + Math.random() * .9, C.rock, x, y + .1, z);
+    rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk);
+  }
+  // COQUEIROS na faixa de areia
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * 6.28, r = costaEm(a, R_ILHA, 0) * (.86 + Math.random() * .07);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    if (y < .1) continue;
+    const p = palm(x, z, Math.random() * 6.28); p.position.y = y - .1; island.add(p);
+  }
+
+  // MATA: acompanha o relevo, evita praia, serra alta, lago e a clareira da vila
   const arvores = [];
-  for (let k = 0; k < 430; k++) {
-    const a = Math.random() * 6.28, r = R_VILA + 3 + Math.random() * (R_ILHA - R_VILA - 6);
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (z < -20 && x > -31 && x < 23) continue;
-    if (Math.hypot(x - LAGO[0], z - LAGO[1]) < LAGO_R + 3.5) continue;
-    arvores.push([x, .5, z, .75 + Math.random() * .75, Math.random() * 6.28]);
+  for (let k = 0; k < 1400; k++) {
+    const a = Math.random() * 6.28, r = R_VILA + 13 + Math.random() * (R_ILHA - R_VILA - 15);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    if (y < 1.0 || y > 15) continue;
+    if (Math.hypot(x - LAGO[0], z - LAGO[1]) < LAGO_R + 4) continue;
+    arvores.push([x, y - .25, z, .75 + Math.random() * .8, Math.random() * 6.28]);
   }
   island.add(florestaDensa(arvores));
+
+  // BORDA DA MATA: arvores soltas e arbustos entre a clareira e a mata fechada,
+  // pra nao existir uma linha reta separando vila de floresta.
+  const borda = [];
+  for (let k = 0; k < 150; k++) {
+    const a = Math.random() * 6.28;
+    const d = Math.pow(Math.random(), .65);                 // adensa perto da mata
+    const r = R_VILA + 3 + d * 12;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    if (Math.hypot(x - 2.6, z - 1.0) < 6) continue;         // nao invade o deposito
+    borda.push([x, y - .2, z, .45 + Math.random() * .6, Math.random() * 6.28]);
+  }
+  island.add(florestaDensa(borda));
+  for (let k = 0; k < 60; k++) {
+    const a = Math.random() * 6.28, r = R_VILA + 2 + Math.random() * 13;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    const arb = sphere(.4 + Math.random() * .5, k % 3 ? 0x4e9e52 : 0x5cb85c, x, y + .25, z);
+    arb.scale.y = .62; island.add(arb);
+  }
+  for (let k = 0; k < 24; k++) {
+    const a = Math.random() * 6.28, r = R_VILA + 4 + Math.random() * 12;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
+    const rk = sphere(.3 + Math.random() * .55, C.rock, x, y + .12, z);
+    rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk);
+  }
 
   // BICHOS — cada um anda so na sua regiao, longe do centro urbano do Bob
   const fauna = [];
   for (const cfg of FAUNA) {
-    const g = bicho(cfg); g.position.set(cfg.casa[0], .55, cfg.casa[1]); island.add(g);
+    const g = bicho(cfg); g.position.set(cfg.casa[0], alturaIlha(cfg.casa[0], cfg.casa[1]), cfg.casa[1]); island.add(g);
     fauna.push({ g, cfg, x: cfg.casa[0], z: cfg.casa[1], tx: cfg.casa[0], tz: cfg.casa[1], wait: Math.random() * 6 });
   }
 
@@ -582,22 +782,22 @@ export function createScene(canvas) {
   }
   // desbloqueaveis (posicoes fixas)
   // o farol saiu daqui: virou obra (ver OBRA_LOTE)
-  const unlock = { vizinha: ilhaVizinha(), ponte: ponte(48), navio: navio(), montanha: montanha() };
-  unlock.vizinha.position.set(74, 0, 8);
-  unlock.ponte.position.set(50, 0, 6);
-  unlock.navio.position.set(58, -.3, 36);
-  unlock.montanha.position.set(-8, -.5, -104);
+  const unlock = { vizinha: ilhaVizinha(), ponte: ponte(90), navio: navio(), montanha: montanha() };
+  unlock.vizinha.position.set(150, 0, 12);
+  unlock.ponte.position.set(82, 0, 6);
+  unlock.navio.position.set(96, -.3, 58);
+  unlock.montanha.position.set(-10, -.5, -168);
   for (const k in unlock) scene.add(unlock[k]);
   const extras = new THREE.Group(); scene.add(extras);
   const arquipelago = []; // 8 ilhas naturais, sempre visiveis
-  for (let i = 0; i < 8; i++) { const g = buildIlhaVizinhaNatural(i); const a = .6 + i * .8, r = 76 + (i % 2) * 13; g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); g.rotation.y = -a; scene.add(g); arquipelago.push(g); }
+  for (let i = 0; i < 8; i++) { const g = ilhaVizinhaGrande(i); const a = .55 + i * .79, r = 132 + (i % 3) * 26; g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); g.rotation.y = -a; scene.add(g); arquipelago.push(g); }
   window.__ilha = { scene, unlock, renderer, camera, controls, npcState, slots };
   let unlockState = {};
 
   const birds = new THREE.Group(); scene.add(birds);
-  for (let i = 0; i < 4; i++) { const b = new THREE.Group(); const w1 = box(.35, .02, .1, 0x222222, -.17, 0, 0), w2 = box(.35, .02, .1, 0x222222, .17, 0, 0); w1.rotation.z = .5; w2.rotation.z = -.5; b.add(w1, w2); b.userData = { r: 34 + i * 5, s: .3 + i * .08, ph: i * 1.7, y: 8 + i * .7 }; birds.add(b); }
+  for (let i = 0; i < 4; i++) { const b = new THREE.Group(); const w1 = box(.35, .02, .1, 0x222222, -.17, 0, 0), w2 = box(.35, .02, .1, 0x222222, .17, 0, 0); w1.rotation.z = .5; w2.rotation.z = -.5; b.add(w1, w2); b.userData = { r: 52 + i * 8, s: .3 + i * .08, ph: i * 1.7, y: 8 + i * .7 }; birds.add(b); }
 
-  scene.fog = new THREE.FogExp2(0x7fc4ff, .0019);
+  scene.fog = new THREE.FogExp2(0x7fc4ff, .0013);
   let pulses = [];
 
   // Distancia de camera: no comeco a vila e tudo o que existe, entao ela fica perto.
@@ -608,10 +808,10 @@ export function createScene(canvas) {
   // o que fazia a ilha abrir na distancia de modo paisagem no celular.
   function distDesejada() {
     const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1;
-    return (w < h ? 40 : 33) + Math.min(Math.max(nObras, 0), 20) * 3.4;
+    return (w < h ? 50 : 40) + Math.min(Math.max(nObras, 0), 20) * 3.6;
   }
   function enquadrar() {
-    const dir = new THREE.Vector3(.60, .44, .72).normalize();   // ~25 graus acima do horizonte
+    const dir = new THREE.Vector3(.60, .42, .72).normalize();   // ~24 graus acima do horizonte
     camera.position.copy(controls.target).add(dir.multiplyScalar(distDesejada()));
     camera.updateProjectionMatrix();
   }
@@ -641,6 +841,7 @@ export function createScene(canvas) {
     // com os materiais do deposito. Cada obra tem um lote fixo na ilha.
     const OBRA_LOTE = {
       abrigo:   [1.4, 5.2, Math.PI + .3],  fogueira: [0, .6, 0],        chuva:   [5.0, 2.6, -.6],
+      armadilha:[-7.4, 2.2, .9],           palicada: [1.0, -1.0, -1.15],
       horta:    [-3.6, 5.6, -.6],          deposito: [2.6, -2.8, .4],   cabana:  [1.4, 9.6, Math.PI],
       fogao:    [4.4, 9.2, Math.PI - .3],  poco:     [-1.9, 2.4, 0],    oficina: [-4.4, -5.8, .5],
       curral:   [-8.8, -6.6, .9],          moinho:   [-9.0, 8.6, .6],   radio:   [-6.6, -10.2, 0],
@@ -653,6 +854,8 @@ export function createScene(canvas) {
       abrigo:   () => buildBarraca(),
       fogueira: () => buildFogueira(),
       chuva:    () => buildColetorChuva(),
+      armadilha:() => buildArmadilha(),
+      palicada: () => buildPalicada(),
       horta:    () => buildHorta(2, 1, !!v.perfectToday),
       deposito: () => buildTelheiro(),
       cabana:   () => buildCasa(0xe4d3ad),
@@ -765,8 +968,12 @@ export function createScene(canvas) {
     const d = new Date(); const hp = new URLSearchParams(location.search).get('hora'); const hour = hp !== null ? +hp : d.getHours() + d.getMinutes() / 60;
     // ceu e sol
     const sky = skyColor(hour); scene.background = sky;
+    // horizonte mais claro, zenite mais fundo: e isso que da profundidade ao ceu
+    skyMat.uniforms.horizonte.value.copy(sky).lerp(new THREE.Color(0xffffff), .28);
+    skyMat.uniforms.zenite.value.copy(sky).multiplyScalar(.62);
+    skyDome.position.copy(camera.position);
     const foggy = view && view.weather.fog;
-    scene.fog.color.copy(foggy ? new THREE.Color(0x9aa5b1).lerp(sky, .4) : sky); scene.fog.density = foggy ? .013 : .0019;
+    scene.fog.color.copy(foggy ? new THREE.Color(0x9aa5b1).lerp(sky, .4) : sky); scene.fog.density = foggy ? .010 : .0013;
     const ang = (hour - 6) / 12 * Math.PI; const sunUp = Math.sin(ang);
     sun.position.set(Math.cos(ang) * 120, Math.max(sunUp, .02) * 120, 48); sun.intensity = Math.max(sunUp, 0) * 1.7 * (foggy ? .55 : 1);
     // sol/lua bem longe: tem que parecer ceu, nao um objeto boiando em cima da ilha
@@ -784,6 +991,15 @@ export function createScene(canvas) {
     if (slots.obra_moinho) slots.obra_moinho.getObjectByName('pas').rotation.z = t * (view && view.weather.clear ? 1.6 : .7);
     const fum = aviao.getObjectByName('fumaca'); fum.position.y = 1.9 + (t % 3) * .5; fum.scale.setScalar(1 + (t % 3) * .35); fum.material.opacity = 1 - (t % 3) / 3; fum.material.transparent = true;
     if (unlock.navio.visible) { unlock.navio.position.y = -.3 + Math.sin(t * .8) * .12; unlock.navio.rotation.z = Math.sin(t * .6) * .04; }
+    // nuvens andando com o vento
+    nuvens.children.forEach(n => {
+      const u = n.userData; u.a += u.v * dt;
+      n.position.set(Math.cos(u.a) * u.r, u.y, Math.sin(u.a) * u.r);
+      n.rotation.y = -u.a;
+    });
+    // espuma respirando na beira
+    const esp = scene.getObjectByName('espumaLinha');
+    if (esp) esp.material.opacity = .40 + Math.sin(t * .8) * .14;
     // passaros
     birds.children.forEach(b => { const u = b.userData; const a = t * u.s + u.ph; b.position.set(Math.cos(a) * u.r, u.y + Math.sin(t * 2 + u.ph) * .3, Math.sin(a) * u.r); b.rotation.y = -a; b.children[0].rotation.z = .5 + Math.sin(t * 9) * .4; b.children[1].rotation.z = -.5 - Math.sin(t * 9) * .4; });
     // NPCs: rotinas (dia: pontos de interesse; noite: fogueira ou casa)
@@ -815,11 +1031,21 @@ export function createScene(canvas) {
         b.g.rotation.y = Math.atan2(dx, dz); andando = true;
       } else if (b.wait > 0) { b.wait -= dt; }
       else {
-        const a = Math.random() * 6.28, r = Math.random() * b.cfg.raio;
-        b.tx = b.cfg.casa[0] + Math.cos(a) * r; b.tz = b.cfg.casa[1] + Math.sin(a) * r;
-        b.wait = 2 + Math.random() * 7;
+        const a = Math.random() * 6.28;
+        let cx = b.cfg.casa[0], cz = b.cfg.casa[1], raio = b.cfg.raio;
+        if (b.cfg.predador) {
+          // Com a fogueira acesa ele fica no fundo da mata; sem ela, encosta na
+          // clareira. E a unica coisa na ilha que anda pra tras quando o dia e perfeito.
+          const seguro = view && view.perfectToday;
+          const bravo = view && view.weather && view.weather.fog;
+          const k = seguro ? 1.0 : bravo ? .40 : .70;
+          cx *= k; cz *= k; raio = 9;
+        }
+        const r = Math.random() * raio;
+        b.tx = cx + Math.cos(a) * r; b.tz = cz + Math.sin(a) * r;
+        b.wait = (b.cfg.predador ? 1 : 2) + Math.random() * 7;
       }
-      b.g.position.set(b.x, .55, b.z);
+      b.g.position.set(b.x, alturaIlha(b.x, b.z), b.z);
       const sw = andando ? Math.sin(t * 7 * b.cfg.vel) * .5 : 0;
       b.g.userData.legs[0].rotation.x = sw;  b.g.userData.legs[1].rotation.x = sw;
       b.g.userData.legs2[0].rotation.x = -sw; b.g.userData.legs2[1].rotation.x = -sw;
@@ -831,7 +1057,7 @@ export function createScene(canvas) {
     // o pan nao pode levar a camera pra fora da ilha
     const alvo = controls.target;
     const rAlvo = Math.hypot(alvo.x, alvo.z);
-    if (rAlvo > R_ILHA) { alvo.x *= R_ILHA / rAlvo; alvo.z *= R_ILHA / rAlvo; }
+    if (rAlvo > R_ILHA + 6) { const k = (R_ILHA + 6) / rAlvo; alvo.x *= k; alvo.z *= k; }
     alvo.y = Math.max(.4, Math.min(alvo.y, 8));
     if (camera.position.y < 1.6) camera.position.y = 1.6;   // nao entra no chao (topo da ilha = .55)
     controls.update(); renderer.render(scene, camera);
