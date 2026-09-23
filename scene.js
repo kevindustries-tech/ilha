@@ -426,13 +426,28 @@ export function createScene(canvas) {
   const camera = new THREE.PerspectiveCamera(50, 1, .1, 900);
   camera.position.set(52, 38, 60);
   const controls = new OrbitControls(camera, canvas);
-  controls.target.set(0, 1, 0); controls.enableDamping = true; controls.maxPolarAngle = 1.35; controls.minDistance = 6; controls.maxDistance = 240; controls.enablePan = false;
+  controls.target.set(0, 1, 0);
+  controls.enableDamping = true; controls.dampingFactor = .07;
+  controls.maxPolarAngle = 1.52;              // quase no nivel do chao
+  controls.minDistance = 7; controls.maxDistance = 260;
+  controls.enablePan = true;                  // 2 dedos no celular, botao direito no PC
+  controls.screenSpacePanning = false;        // pan anda pelo chao, nao pelo ar
+  controls.panSpeed = .8; controls.rotateSpeed = .75; controls.zoomSpeed = .9;
+  controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
   controls.autoRotate = true; controls.autoRotateSpeed = .35;
-  canvas.addEventListener('pointerdown', () => { controls.autoRotate = false; clearTimeout(idle); idle = setTimeout(() => controls.autoRotate = true, 15000); });
+  canvas.addEventListener('pointerdown', () => { controls.autoRotate = false; clearTimeout(idle); idle = setTimeout(() => controls.autoRotate = true, 45000); });
   let idle;
+  // toque duplo (ou clique duplo) recentra na vila
+  let ultimoToque = 0;
+  canvas.addEventListener('pointerup', () => {
+    const agora = performance.now();
+    if (agora - ultimoToque < 320) { controls.target.set(0, 1, 0); enquadrar(); }
+    ultimoToque = agora;
+  });
 
   const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x3a5a2a, .6); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.06;   // ilha grande = texel grande = acne de sombra
   Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 320 }); scene.add(sun);
   const moon = new THREE.DirectionalLight(0x9db4ff, 0); scene.add(moon);
   const sunMesh = sphere(5, 0xffe27a, 0, 0, 0, { emissive: 0xffd24d, emissiveIntensity: 1.5, fog: false }); sunMesh.castShadow = false; sunMesh.receiveShadow = false; scene.add(sunMesh);
@@ -454,8 +469,8 @@ export function createScene(canvas) {
   const island = new THREE.Group(); scene.add(island);
   island.add(cyl(R_ILHA + 3.5, R_ILHA + 7, 2.6, C.sand, 0, -2.2, 0, 26));      // praia
   island.add(cyl(R_ILHA, R_ILHA + 2.4, .6, C.grass, 0, -.25, 0, 26));          // campo
-  island.add(cyl(R_ILHA - 1.2, R_ILHA - .2, .35, C.grass2, 0, .2, 0, 26));
-  island.add(cyl(R_VILA + 1.0, R_VILA + 2.2, .10, 0x6cc46c, 0, .45, 0, 20));   // clareira da vila (topo em .55)
+  island.add(cyl(R_ILHA - 1.2, R_ILHA - .2, .32, C.grass2, 0, .2, 0, 26));   // topo .52 (a clareira fica em .55)
+  island.add(cyl(R_VILA + 1.0, R_VILA + 2.2, .13, 0x63bd63, 0, .42, 0, 24));   // clareira da vila (topo .55)
   for (let i = 0; i < 46; i++) { const a = i * .86, r = R_ILHA + 1.5 + Math.random() * 4; const rk = sphere(.3 + Math.random() * .7, C.rock, Math.cos(a) * r, .1, Math.sin(a) * r); rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk); }
   for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, r = R_ILHA - 2 + Math.random() * 5; island.add(palm(Math.cos(a) * r, Math.sin(a) * r, Math.random() * 6.28)); }
   island.add(palm(14.4, 6.8, 1), palm(-12.6, 9.2, 2.4), palm(-14.9, -4.9, 4), palm(11.9, -11.3, 5.5), palm(2.2, 15.1, .8), palm(-5.5, -14.5, 3));
@@ -490,8 +505,12 @@ export function createScene(canvas) {
   }
 
   // A floresta e a pedreira DE TRABALHO ficam perto da vila (Bob vai la todo dia)
-  // trilhas do centro pros distritos e pros recursos
-  for (const [a, len] of [[0, 4.0], [2.094, 4.5], [4.189, 4.5], [-.75, 5.5], [3.05, 5.0]]) { const t = box(.5, .03, len, 0xd6c9a3, Math.cos(a) * (len / 2 + .6), .55, Math.sin(a) * (len / 2 + .6)); t.rotation.y = -a + Math.PI / 2; island.add(t); }
+  // trilhas de terra batida: so pros dois lugares onde o Bob realmente vai
+  for (const [x, z] of [[7.0, -4.6], [-8.2, 1.2]]) {
+    const len = Math.hypot(x, z) - 1.6, a = Math.atan2(z, x);
+    const tr = box(1.15, .02, len, 0x7fb56a, Math.cos(a) * (len / 2 + 1.4), .55, Math.sin(a) * (len / 2 + 1.4));
+    tr.rotation.y = -a + Math.PI / 2; tr.receiveShadow = true; tr.castShadow = false; island.add(tr);
+  }
 
   function buildTelheiro() {
     const g = new THREE.Group();
@@ -560,8 +579,24 @@ export function createScene(canvas) {
   scene.fog = new THREE.FogExp2(0x7fc4ff, .0019);
   let pulses = [];
 
-  let lastDist = 0;
-  function resize() { const w = canvas.clientWidth, h = canvas.clientHeight; if (canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio()) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); const want = camera.aspect < 1 ? 118 : 90; if (want !== lastDist) { const dir = camera.position.clone().sub(controls.target).normalize(); camera.position.copy(controls.target).add(dir.multiplyScalar(want)); lastDist = want; } } }
+  // Distancia de camera: no comeco a vila e tudo o que existe, entao ela fica perto.
+  // Cada obra levantada afasta um pouco, ate abrir a ilha inteira no fim.
+  let nObras = 0, enquadrou = false, lastAspect = 0;
+  const distDesejada = () => (camera.aspect < 1 ? 52 : 42) + Math.min(nObras, 20) * 3.4;
+  function enquadrar() {
+    const dir = new THREE.Vector3(.60, .50, .72).normalize();
+    camera.position.copy(controls.target).add(dir.multiplyScalar(distDesejada()));
+    camera.updateProjectionMatrix();
+  }
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width === w * renderer.getPixelRatio() && canvas.height === h * renderer.getPixelRatio()) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    // so reenquadra quando a orientacao da tela muda (ou na primeira vez):
+    // depois disso o zoom e do usuario e nao pode ser roubado dele
+    const retrato = camera.aspect < 1;
+    if (!enquadrou || retrato !== lastAspect) { enquadrou = true; lastAspect = retrato; enquadrar(); }
+  }
 
   let view = null;
   loadChars().then(ok => { if (ok && view) apply(view); });
@@ -603,6 +638,7 @@ export function createScene(canvas) {
       camara:   () => buildPredio('prefeitura'),
     };
     const feitas = v.obras || [];
+    if (!enquadrou) nObras = feitas.length;   // antes do primeiro enquadramento
     const temCabana = feitas.includes('cabana');
     for (const id of Object.keys(OBRA_LOTE)) {
       const key = 'obra_' + id;
@@ -675,10 +711,11 @@ export function createScene(canvas) {
     while (extras.children.length > nOcup) extras.remove(extras.children[extras.children.length - 1]);
     // tecnologia (Bob e um genio): moinho, paineis, antena, parabolica, postes
     const tec = v.tecnologias || [];
-    put('gerador', tec.includes('gerador') ? buildGerador() : null, 4.4, -1.2, 0);
-    put('paineis', tec.includes('solar') ? buildPaineis() : null, 9.4, 3.6, 0);
+    const temEnergia = feitas.includes('moinho');
+    put('gerador', temEnergia ? buildGerador() : null, 4.4, -1.2, 0);
+    put('paineis', temEnergia && tec.includes('solar') ? buildPaineis() : null, 9.4, 3.6, 0);
     put('parabolica', tec.includes('internet') ? buildAntena(true) : null, 13.6, 1.6, 0);
-    put('postes', tec.includes('gerador') ? buildPostes(night) : null, 0, 0, 0);
+    put('postes', temEnergia ? buildPostes(night) : null, 0, 0, 0);
     // (a antiga lista CIDADE virou parte das OBRAS)
     unlockState = v.unlocked;
     for (const k in unlock) { const on = !!v.unlocked[k]; unlock[k].traverse(o => { if (o.isMesh) { o.material.transparent = !on; o.material.opacity = on ? 1 : .1; o.material.depthWrite = on; o.castShadow = on; o.receiveShadow = on; if (!on) { o.material.color.set(0xdfefff); o.material.emissive.set(0); } } }); unlock[k].visible = on || k !== 'montanha' || v.unlocked.navio; }
@@ -757,6 +794,11 @@ export function createScene(canvas) {
     if (slots.obra_fogao) { const br = slots.obra_fogao.getObjectByName('brasa'); if (br) br.scale.setScalar(1 + Math.sin(t * 8) * .12); }
     // pulsos de feedback
     pulses = pulses.filter(p => { p.t += dt * 2.2; const s = 1 + Math.sin(Math.min(p.t, 1) * Math.PI) * .18; p.g.scale.set(s, s, s); if (p.g === slots.personagem) p.g.position.y = .55 + Math.sin(Math.min(p.t, 1) * Math.PI) * .9; return p.t < 1; });
+    // o pan nao pode levar a camera pra fora da ilha
+    const alvo = controls.target;
+    const rAlvo = Math.hypot(alvo.x, alvo.z);
+    if (rAlvo > R_ILHA) { alvo.x *= R_ILHA / rAlvo; alvo.z *= R_ILHA / rAlvo; }
+    alvo.y = Math.max(0, Math.min(alvo.y, 8));
     controls.update(); renderer.render(scene, camera);
   }
   requestAnimationFrame(frame);
