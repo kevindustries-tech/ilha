@@ -430,19 +430,39 @@ export function createScene(canvas) {
   controls.enableDamping = true; controls.dampingFactor = .07;
   controls.maxPolarAngle = 1.52;              // quase no nivel do chao
   controls.minDistance = 7; controls.maxDistance = 260;
-  controls.enablePan = true;                  // 2 dedos no celular, botao direito no PC
-  controls.screenSpacePanning = false;        // pan anda pelo chao, nao pelo ar
-  controls.panSpeed = .8; controls.rotateSpeed = .75; controls.zoomSpeed = .9;
+  controls.enablePan = true;
+  controls.screenSpacePanning = false;        // o pan corre pelo chao: parece avancar, nao flutuar
+  controls.panSpeed = 1.3; controls.rotateSpeed = .75; controls.zoomSpeed = .9;
+  // 1 dedo = so gira em volta da ilha. 2 dedos = avanca na direcao arrastada
+  // (e pinca pra aproximar/afastar). No PC: botao esquerdo gira, direito avanca.
   controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
   controls.autoRotate = true; controls.autoRotateSpeed = .35;
-  canvas.addEventListener('pointerdown', () => { controls.autoRotate = false; clearTimeout(idle); idle = setTimeout(() => controls.autoRotate = true, 45000); });
-  let idle;
-  // toque duplo (ou clique duplo) recentra na vila
-  let ultimoToque = 0;
-  canvas.addEventListener('pointerup', () => {
+
+  // ----- toque duplo recentra na vila -----
+  // CUIDADO: dois dedos disparam dois 'pointerup' quase juntos. A versao antiga lia isso
+  // como toque duplo, entao TODO gesto de 2 dedos resetava a camera. Agora so conta como
+  // toque quando foi um dedo so, curto e sem arrastar.
+  let idle, dedos = 0, houveMulti = false, tIni = 0, xIni = 0, yIni = 0, ultimoTap = 0;
+  canvas.addEventListener('pointerdown', e => {
+    dedos++;
+    if (dedos > 1) houveMulti = true;
+    if (dedos === 1) { tIni = performance.now(); xIni = e.clientX; yIni = e.clientY; }
+    controls.autoRotate = false; clearTimeout(idle);
+    idle = setTimeout(() => controls.autoRotate = true, 45000);
+  });
+  canvas.addEventListener('pointercancel', () => { dedos = 0; houveMulti = false; });
+  canvas.addEventListener('pointerup', e => {
+    dedos = Math.max(0, dedos - 1);
+    if (dedos > 0) return;                                   // ainda tem dedo na tela
+    const curto = performance.now() - tIni < 250;
+    const parado = Math.hypot(e.clientX - xIni, e.clientY - yIni) < 12;
+    const foiTap = !houveMulti && curto && parado;
+    houveMulti = false;
+    if (!foiTap) { ultimoTap = 0; return; }
     const agora = performance.now();
-    if (agora - ultimoToque < 320) { controls.target.set(0, 1, 0); enquadrar(); }
-    ultimoToque = agora;
+    if (agora - ultimoTap < 320) { controls.target.set(0, 1, 0); enquadrar(); ultimoTap = 0; }
+    else ultimoTap = agora;
   });
 
   const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x3a5a2a, .6); scene.add(hemi);
