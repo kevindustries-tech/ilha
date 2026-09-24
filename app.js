@@ -185,12 +185,12 @@ async function conta() {
   }
   open(head('☁️ Conta') +
     `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">Crie uma conta pra não perder a ilha se trocar de celular ou apagar o app. O jogo continua funcionando offline — a nuvem é só a cópia de segurança.</div>
-     <div class="row"><div class="t">Usuário</div><input class="price" style="width:150px" id="us" autocapitalize="none" autocomplete="username" placeholder="ex: bob"></div>
-     <div class="row"><div class="t">Senha</div><input class="price" style="width:150px" id="pw" type="password" autocomplete="current-password" placeholder="mínimo 6"></div>
+     <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="us" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="voce@exemplo.com"></div>
+     <div class="row"><div class="t">Senha</div><input class="price" style="width:170px" id="pw" type="password" autocomplete="current-password" placeholder="mínimo 6"></div>
      <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
      <button class="buy" id="entrar" style="margin-top:10px;width:100%">entrar</button>
      <button class="ghost" id="criar" style="margin-top:8px;width:100%">criar conta nova</button>
-     <div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">Só usuário e senha, sem e-mail. Anote a senha: sem e-mail não tem como recuperar.</div>`);
+     <div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">⚠️ <b>Anote a senha.</b> A recuperação por e-mail ainda não está ligada — o e-mail fica guardado pra quando estiver.</div>`);
   const msg = m => $('#msg').textContent = m;
   const pega = () => ({ u: $('#us').value, p: $('#pw').value });
   const depois = async (r, novo) => {
@@ -200,13 +200,13 @@ async function conta() {
   };
   $('#entrar').onclick = async () => {
     const { u, p } = pega();
-    if (!N.usuarioValido(u)) return msg('usuário precisa de pelo menos 3 letras');
+    if (!N.emailValido(u)) return msg('escreve um e-mail válido');
     if (p.length < 6) return msg('senha precisa de pelo menos 6 caracteres');
     msg('entrando...'); depois(await N.entrar(u, p), false);
   };
   $('#criar').onclick = async () => {
     const { u, p } = pega();
-    if (!N.usuarioValido(u)) return msg('usuário precisa de pelo menos 3 letras');
+    if (!N.emailValido(u)) return msg('escreve um e-mail válido');
     if (p.length < 6) return msg('senha precisa de pelo menos 6 caracteres');
     msg('criando...'); depois(await N.criarConta(u, p), true);
   };
@@ -239,9 +239,9 @@ async function sincronizar(contaNova) {
 let draft = null;
 function setup(passo = 1) {
   if (!draft) draft = { nome: state.nome, habitos: state.habitos.map(h => ({ ...h, dias: [...(h.dias || [])] })), rewards: state.rewards.map(r => ({ ...r })) };
-  const N = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  const LETRA_DIA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];   // nao usar 'N' aqui: sombreia o import da nuvem
   if (passo === 1) {
-    open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de 2</span></h2>
+    open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de ${state.setupDone ? 2 : 3}</span></h2>
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
       <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
@@ -249,7 +249,7 @@ function setup(passo = 1) {
         <div style="display:flex;justify-content:space-between;align-items:center"><div class="t">${h.icone} ${esc(h.nome)}</div><button class="ghost" data-del="${i}">remover</button></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <select class="price" style="width:auto" data-tipo="${i}"><option value="diario" ${h.tipo === 'diario' ? 'selected' : ''}>todo dia</option><option value="dias" ${h.tipo === 'dias' ? 'selected' : ''}>dias fixos</option><option value="semana" ${h.tipo === 'semana' ? 'selected' : ''}>X vezes por semana</option></select>
-          ${h.tipo === 'dias' ? N.map((n, d) => `<button class="ghost" data-dia="${i}:${d}" style="${h.dias.includes(d) ? 'background:var(--ok);color:#053' : ''}">${n}</button>`).join('') : ''}
+          ${h.tipo === 'dias' ? LETRA_DIA.map((n, d) => `<button class="ghost" data-dia="${i}:${d}" style="${h.dias.includes(d) ? 'background:var(--ok);color:#053' : ''}">${n}</button>`).join('') : ''}
           ${h.tipo === 'semana' ? `<input class="price" type="number" min="1" max="7" value="${h.vezes || 3}" data-vezes="${i}"> <span class="d">vezes/semana</span>` : ''}
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
@@ -261,27 +261,62 @@ function setup(passo = 1) {
     sheet.querySelectorAll('[data-dia]').forEach(b => b.onclick = () => { const [i, d] = b.dataset.dia.split(':').map(Number); const h = draft.habitos[i]; h.dias = h.dias.includes(d) ? h.dias.filter(x => x !== d) : [...h.dias, d]; setup(1); });
     sheet.querySelectorAll('[data-vezes]').forEach(i => i.onchange = () => { draft.habitos[+i.dataset.vezes].vezes = Math.max(1, Math.min(7, +i.value || 3)); });
     $('#prox').onclick = () => setup(2);
-  } else {
-    open(`<h2>🎁 Suas recompensas <span class="d" style="font-size:12px">passo 2 de 2</span></h2>
+  } else if (passo === 2) {
+    open(`<h2>🎁 Suas recompensas <span class="d" style="font-size:12px">passo 2 de ${state.setupDone ? 2 : 3}</span></h2>
       <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:6px">O que você quer poder comprar com as moedas dos hábitos? Toque pra adicionar e ajuste o preço (1 moeda ≈ 1 hábito cumprido; dia perfeito dá +2).</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_RECOMPENSAS.map((s, i) => draft.rewards.some(r => r.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outra</button></div>
       ${draft.rewards.map((r, i) => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}</div>
         ${r.folga !== undefined ? `<div class="d" style="margin-top:4px">folga de: <select class="price" style="width:auto" data-folga="${i}">${draft.habitos.map(h => `<option value="${h.id}" ${r.folga === h.id ? 'selected' : ''}>${h.icone} ${esc(h.nome)}</option>`).join('')}</select></div>` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center"><input class="price" type="number" min="1" value="${r.preco}" data-preco="${i}"><button class="ghost" data-del="${i}">✕</button></div></div>`).join('') || '<div class="d">Nenhuma recompensa ainda.</div>'}
-      <button class="ghost" id="btconta" style="margin-top:14px;width:100%">☁️ conta e backup na nuvem</button>
-      <div style="display:flex;gap:8px;margin-top:8px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'começar a ilha 🏝️'}</button></div>`, state.setupDone);
+      ${state.setupDone ? '<button class="ghost" id="btconta" style="margin-top:14px;width:100%">☁️ conta e backup na nuvem</button>' : ''}
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'continuar →'}</button></div>`, state.setupDone);
     sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
     $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco }); setup(2); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.rewards.splice(+b.dataset.del, 1); setup(2); });
     sheet.querySelectorAll('[data-preco]').forEach(i => i.onchange = () => { draft.rewards[+i.dataset.preco].preco = Math.max(1, +i.value || 1); });
     sheet.querySelectorAll('[data-folga]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.folga].folga = s.value; });
-    $('#btconta').onclick = conta;
+    if ($('#btconta')) $('#btconta').onclick = conta;
     $('#volta').onclick = () => setup(1);
     $('#ok').onclick = () => {
       draft.rewards.forEach(r => { if (r.folga !== undefined && !draft.habitos.some(h => h.id === r.folga)) r.folga = (draft.habitos[0] || {}).id; });
-      state.nome = draft.nome; state.habitos = draft.habitos; state.rewards = draft.rewards; state.setupDone = true; draft = null;
-      salvar(); close(); render(); toast(`Bem-vindo à ilha, ${state.nome}. Cada dia conta. 🏝️`, 4000);
+      const primeiraVez = !state.setupDone;
+      // guarda hábitos e recompensas ja; setupDone so no fim, senao da pra escapar do passo 3
+      state.nome = draft.nome; state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
+      if (primeiraVez) { salvar(); return setup(3); }
+      salvar(); close(); render(); toast(`De volta à ilha, ${state.nome}. 🏝️`, 3000);
     };
+  } else {
+    // ---- passo 3: conta. A ilha vive no aparelho; sem conta, trocou de celular e acabou.
+    // Por isso a conta e obrigatoria pra começar -- menos quando o aparelho esta sem
+    // rede, que ai seria o app se recusando a abrir por um motivo que nao e do usuario.
+    const pronto = () => { state.setupDone = true; salvar(); close(); render(); };
+    open(`<h2>☁️ Sua conta <span class="d" style="font-size:12px">passo 3 de 3</span></h2>
+      <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">A ilha vive neste aparelho. A conta é a cópia de segurança: sem ela, trocou de celular ou limpou o navegador e o progresso foi embora. O jogo continua funcionando offline.</div>
+      <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="em" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="voce@exemplo.com"></div>
+      <div class="row"><div class="t">Senha</div><input class="price" style="width:170px" id="pw" type="password" autocomplete="new-password" placeholder="mínimo 6"></div>
+      <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
+      <button class="buy" id="criar" style="width:100%">criar conta e começar 🏝️</button>
+      <button class="ghost" id="entrar" style="margin-top:8px;width:100%">já tenho conta</button>
+      <div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">⚠️ <b>Anote a senha.</b> A recuperação por e-mail ainda não está ligada — o e-mail fica guardado pra quando estiver.</div>
+      <div style="display:flex;gap:8px;margin-top:10px"><button class="ghost" id="volta">← recompensas</button><button class="ghost" id="semrede" style="flex:1;display:none">começar sem conta</button></div>`, false);
+    const msg = m => $('#msg').textContent = m;
+    const pega = () => ({ e: $('#em').value, p: $('#pw').value });
+    const valida = ({ e, p }) => !N.emailValido(e) ? 'escreve um e-mail válido' : p.length < 6 ? 'a senha precisa de pelo menos 6 caracteres' : '';
+    const fim = async (r, contaNova) => {
+      if (r.erro) {
+        msg(r.erro);
+        // sem rede nao e culpa de quem esta instalando: libera a saída
+        if (/conex|servidor|rede/i.test(r.erro)) $('#semrede').style.display = 'block';
+        return;
+      }
+      pronto(); await sincronizar(contaNova);
+      toast(`Bem-vindo à ilha, ${state.nome}. Cada dia conta. 🏝️`, 4000);
+    };
+    $('#criar').onclick = async () => { const d = pega(), erro = valida(d); if (erro) return msg(erro); msg('criando...'); fim(await N.criarConta(d.e, d.p), true); };
+    $('#entrar').onclick = async () => { const d = pega(), erro = valida(d); if (erro) return msg(erro); msg('entrando...'); fim(await N.entrar(d.e, d.p), false); };
+    $('#volta').onclick = () => setup(2);
+    $('#semrede').onclick = () => { pronto(); toast('Começou sem conta. Cria uma no ⚙️ assim que tiver internet — sem ela o progresso só existe neste aparelho.', 5500); };
+    if (!navigator.onLine) { msg('sem internet agora'); $('#semrede').style.display = 'block'; }
   }
 }
 

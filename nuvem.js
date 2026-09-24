@@ -5,8 +5,14 @@
 //   seguranca, entao o app funciona offline igual antes.
 // - O Supabase e carregado sob demanda, por import dinamico. Se o CDN cair ou o
 //   celular estiver sem rede, o app nao quebra: so fica sem sincronizar.
-// - Login e por usuario + senha. Por baixo usamos o Auth do Supabase (que cuida
-//   do hash da senha e da sessao), montando um e-mail interno a partir do nome.
+// - Login e por e-mail + senha, no Auth do Supabase (que cuida do hash da senha
+//   e da sessao). Antes o app montava um e-mail interno a partir do usuario
+//   ('bob@ilha.app'): dominio que nao existe, caixa que ninguem le, e por isso
+//   nao havia como recuperar senha nenhuma. Agora o e-mail e o de verdade.
+// - AINDA NAO DA PRA RECUPERAR SENHA: falta configurar um SMTP proprio no
+//   Supabase (o servidor de teste dele so entrega pra membro do projeto). O
+//   e-mail ja fica guardado; quando o SMTP estiver de pe e so ligar o
+//   resetPasswordForEmail e a tela de senha nova.
 // - As fotos da linha do tempo NAO sobem: sao JPEG em base64 e 60 delas passam
 //   de 6 MB. Elas ficam no aparelho.
 
@@ -25,10 +31,8 @@ async function cliente() {
   } catch (e) { _erroCdn = true; console.warn('Supabase indisponivel:', e); return null; }
 }
 
-// 'bob' -> 'bob@ilha.app'. So letras, numeros, ponto, hifen e underline.
-const limpaUsuario = u => String(u || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
-const emailDe = u => limpaUsuario(u) + '@ilha.app';
-export const usuarioValido = u => limpaUsuario(u).length >= 3;
+const limpaEmail = e => String(e || '').trim().toLowerCase();
+export const emailValido = e => /^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$/.test(limpaEmail(e));
 
 export async function sessao() {
   const sb = await cliente(); if (!sb) return null;
@@ -37,22 +41,22 @@ export async function sessao() {
 }
 export async function quemSou() {
   const s = await sessao();
-  return s ? (s.user.email || '').replace('@ilha.app', '') : null;
+  return s ? (s.user.email || '') : null;
 }
 
-export async function criarConta(usuario, senha) {
+export async function criarConta(email, senha) {
   const sb = await cliente(); if (!sb) return { erro: 'sem conexão com o servidor' };
-  const { error } = await sb.auth.signUp({ email: emailDe(usuario), password: senha });
+  const { error } = await sb.auth.signUp({ email: limpaEmail(email), password: senha });
   if (error) return { erro: traduz(error.message) };
   // Com "Confirm email" desligado o signUp ja deixa a sessao aberta; se nao,
   // entra em seguida pra garantir.
-  if (!(await sessao())) return entrar(usuario, senha);
+  if (!(await sessao())) return entrar(email, senha);
   return { ok: true };
 }
 
-export async function entrar(usuario, senha) {
+export async function entrar(email, senha) {
   const sb = await cliente(); if (!sb) return { erro: 'sem conexão com o servidor' };
-  const { error } = await sb.auth.signInWithPassword({ email: emailDe(usuario), password: senha });
+  const { error } = await sb.auth.signInWithPassword({ email: limpaEmail(email), password: senha });
   if (error) return { erro: traduz(error.message) };
   return { ok: true };
 }
@@ -63,8 +67,10 @@ export async function sair() {
 
 function traduz(m) {
   const s = String(m).toLowerCase();
-  if (s.includes('invalid login')) return 'usuário ou senha errados';
-  if (s.includes('already registered') || s.includes('already been registered')) return 'esse nome de usuário já existe';
+  if (s.includes('invalid login')) return 'e-mail ou senha errados';
+  if (s.includes('already registered') || s.includes('already been registered')) return 'já existe conta com esse e-mail';
+  if (s.includes('email') && (s.includes('invalid') || s.includes('valid'))) return 'esse e-mail não parece válido';
+  if (s.includes('confirm')) return 'confirme o e-mail antes de entrar';
   if (s.includes('password') && s.includes('6')) return 'a senha precisa de pelo menos 6 caracteres';
   if (s.includes('rate') || s.includes('many')) return 'muitas tentativas seguidas, espera um minuto';
   return m;
