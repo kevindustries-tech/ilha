@@ -25,7 +25,7 @@ async function cliente() {
   } catch (e) { _erroCdn = true; console.warn('Supabase indisponivel:', e); return null; }
 }
 
-// 'kevin' -> 'kevin@ilha.app'. So letras, numeros, ponto, hifen e underline.
+// 'bob' -> 'bob@ilha.app'. So letras, numeros, ponto, hifen e underline.
 const limpaUsuario = u => String(u || '').trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 const emailDe = u => limpaUsuario(u) + '@ilha.app';
 export const usuarioValido = u => limpaUsuario(u).length >= 3;

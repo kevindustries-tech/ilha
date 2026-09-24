@@ -892,11 +892,14 @@ export function createScene(canvas) {
 
     const dp = v.deposito || {};
     put('deposito_pilha', buildDeposito(dp.toras || 0, dp.pedras || 0, !!dp.madeiraHoje, !!dp.pedraHoje), 2.6, -1.0, .4);
-    const compras = (v.compras || []).map(c => c.toLowerCase()).join(' ');
-    v.esfiha = /esfiha|pizza|sorvete|doce|lanche|hamb|comida|jantar/.test(compras); v.tv = /tv|s[eé]rie|filme|jogo|game|netflix/.test(compras);
+    // v.compras chega como etiquetas de cena ('mesa', 'tv') escolhidas na configuracao.
+    // Antes era um regex no NOME da recompensa: acoplava a cena aos nomes de quem
+    // escreveu a lista e nao aparecia nada pra qualquer outro nome.
+    const cenas = new Set(v.compras || []);
+    v.mesa = cenas.has('mesa'); v.tv = cenas.has('tv');
     put('rede', v.descanso ? buildRede() : null, 4.6, 5.4, .4);
     put('personagem', charsReady() && !v.descanso ? makeChar(SKINS.bob, .9 + Math.min(v.fit, 12) * .012) : buildPersonagem(v.fit, v.descanso), v.descanso ? 4.6 : 3.2, v.descanso ? 5.4 : 3.2, v.descanso ? .4 : Math.PI);
-    put('mesa', v.esfiha ? buildMesa() : null, 1.6, -1.2, .3);
+    put('mesa', v.mesa ? buildMesa() : null, 1.6, -1.2, .3);
     put('tv', v.tv ? buildTV() : null, -1.8, -.2, 2.6);
     // moradores: Bob comecou sozinho; os outros chegam com os marcos
     const hab = v.habitantes || [];

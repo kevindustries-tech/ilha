@@ -45,7 +45,8 @@ function render() {
     obras: obras.feitas, obraAtual: obras.atual, deposito: dep, done,
     perfectToday: SIM !== null || S.isPerfect(state, iso), descanso: folgaAlguma,
     fit: S.level(tot.checks).lvl + tot.checks / 14,
-    compras: state.purchases.filter(p => p.date === iso).map(p => (state.rewards.find(r => r.id === p.id) || {}).nome || ''),
+    // a ilha recebe a etiqueta de cena da recompensa ('mesa', 'tv'), nunca o nome dela
+    compras: state.purchases.filter(p => p.date === iso).map(p => (state.rewards.find(r => r.id === p.id) || {}).cena || '').filter(Boolean),
     unlocked: { birds: tot.perfect >= 7, farol: tot.perfect >= 30, ponte: tot.perfect >= 60, vizinha: tot.perfect >= 60, navio: tot.perfect >= 100, montanha: tot.perfect >= 200 },
     weather: SIM !== null ? { clear: +SIM >= 7, fog: false } : S.weather(state),
     habitantes: S.habitantes(tot.perfect), tecnologias: S.tecnologias(tot.checks), ilhasExtras: S.ilhasExtras(tot.perfect),
@@ -139,7 +140,7 @@ function info() {
   const lista = (arr, key, unit, on) => arr.map(x => `<div class="row" style="opacity:${on(x) ? 1 : .45}"><div><div class="t">${on(x) ? '✅' : '🔒'} ${esc(x.nome)}</div><div class="d">${esc(x.desc)}</div></div><div class="d" style="white-space:nowrap">${x[key]} ${unit}</div></div>`).join('');
   open(head(`🏝️ A ilha de ${esc(state.nome)}`) + `
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>${esc(state.nome)}</b> era a única pessoa a bordo quando o avião caiu nesta ilha. Sobrou a fuselagem na praia, uma lona, ferramentas — e um gênio com tempo de sobra. Podia ter ido embora; ficou.</div>
-    <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>O que ele come, a ilha dá.</b> Não tem mercado. Ele pesca, arma ciladas nas trilhas e caça o que passa — veado, javali, capivara. Cada refeição é uma manhã inteira de trabalho. O que sobra de madeira e pedra empilha no depósito: <b>qualquer</b> hábito cumprido vira uma tora ou uma pedra — treino, oração ou passar minoxidil valem exatamente o mesmo. Ele é o engenheiro: olha a pilha e levanta a próxima obra da lista, do abrigo de lona até a prefeitura, sempre o mais essencial primeiro.</div>
+    <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>O que ele come, a ilha dá.</b> Não tem mercado. Ele pesca, arma ciladas nas trilhas e caça o que passa — veado, javali, capivara. Cada refeição é uma manhã inteira de trabalho. O que sobra de madeira e pedra empilha no depósito: <b>qualquer</b> hábito cumprido vira uma tora ou uma pedra — treino, leitura ou um copo d’água valem exatamente o mesmo. Ele é o engenheiro: olha a pilha e levanta a próxima obra da lista, do abrigo de lona até a prefeitura, sempre o mais essencial primeiro.</div>
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>Mas a ilha também tem dentes.</b> Tem coisa aqui que caça de volta, e ela anda na linha das árvores. De dia mantém distância. De noite, chega perto o bastante pra se ouvir.</div>
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>A fogueira não é enfeite — é a fronteira.</b> Enquanto ela queima, eles não passam. Nas noites em que ${esc(state.nome)} cumpriu tudo o que se propôs, há lenha seca e o fogo acende. Nas noites em que falhou, não acende: a névoa desce por dois dias e o que mora na mata vem ver de perto. <b>Nada é destruído</b> — a ilha não pune, ela só fica menos segura.</div>
     <div class="d" style="font-size:13px;color:var(--txt);line-height:1.55;margin-bottom:10px"><b>Os escudos são as noites em que ele se preparou antes.</b> A cada 7 dias perfeitos sobra lenha, sobra carne seca, sobra estaca na paliçada — e um dia ruim deixa de virar uma noite ruim.</div>
@@ -186,7 +187,7 @@ async function conta() {
   }
   open(head('☁️ Conta') +
     `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">Crie uma conta pra não perder a ilha se trocar de celular ou apagar o app. O jogo continua funcionando offline — a nuvem é só a cópia de segurança.</div>
-     <div class="row"><div class="t">Usuário</div><input class="price" style="width:150px" id="us" autocapitalize="none" autocomplete="username" placeholder="ex: kevin"></div>
+     <div class="row"><div class="t">Usuário</div><input class="price" style="width:150px" id="us" autocapitalize="none" autocomplete="username" placeholder="ex: bob"></div>
      <div class="row"><div class="t">Senha</div><input class="price" style="width:150px" id="pw" type="password" autocomplete="current-password" placeholder="mínimo 6"></div>
      <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
      <button class="buy" id="entrar" style="margin-top:10px;width:100%">entrar</button>
@@ -267,14 +268,16 @@ function setup(passo = 1) {
       <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:6px">O que você quer poder comprar com as moedas dos hábitos? Toque pra adicionar e ajuste o preço (1 moeda ≈ 1 hábito cumprido; dia perfeito dá +2).</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_RECOMPENSAS.map((s, i) => draft.rewards.some(r => r.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outra</button></div>
       ${draft.rewards.map((r, i) => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}</div>
+        <div class="d" style="margin-top:4px">na ilha: <select class="price" style="width:auto" data-cena="${i}"><option value="">nada</option><option value="mesa" ${r.cena === 'mesa' ? 'selected' : ''}>mesa posta</option><option value="tv" ${r.cena === 'tv' ? 'selected' : ''}>luz da TV</option></select></div>
         ${r.folga !== undefined ? `<div class="d" style="margin-top:4px">folga de: <select class="price" style="width:auto" data-folga="${i}">${draft.habitos.map(h => `<option value="${h.id}" ${r.folga === h.id ? 'selected' : ''}>${h.icone} ${esc(h.nome)}</option>`).join('')}</select></div>` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center"><input class="price" type="number" min="1" value="${r.preco}" data-preco="${i}"><button class="ghost" data-del="${i}">✕</button></div></div>`).join('') || '<div class="d">Nenhuma recompensa ainda.</div>'}
       <button class="ghost" id="btconta" style="margin-top:14px;width:100%">☁️ conta e backup na nuvem</button>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'começar a ilha 🏝️'}</button></div>`, state.setupDone);
-    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
-    $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco }); setup(2); };
+    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, cena: s.cena || '', ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
+    $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco, cena: '' }); setup(2); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.rewards.splice(+b.dataset.del, 1); setup(2); });
     sheet.querySelectorAll('[data-preco]').forEach(i => i.onchange = () => { draft.rewards[+i.dataset.preco].preco = Math.max(1, +i.value || 1); });
+    sheet.querySelectorAll('[data-cena]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.cena].cena = s.value; });
     sheet.querySelectorAll('[data-folga]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.folga].folga = s.value; });
     $('#btconta').onclick = conta;
     $('#volta').onclick = () => setup(1);

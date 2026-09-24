@@ -4,7 +4,7 @@ const KEY = 'ilha.v2';
 // ---------------------------------------------------------------------------
 // OBRAS DA ILHA
 // Habito NAO constroi predio. Todo habito cumprido vale 1 material, igual, seja
-// treino, devocional ou minoxidil. Bob olha a pilha e levanta a proxima obra da
+// treino, leitura ou beber agua. Bob olha a pilha e levanta a proxima obra da
 // lista, na ordem — o mais essencial primeiro. O usuario nao escolhe nada.
 // 'custo' e ACUMULADO: total de materiais pra aquela obra estar de pe.
 export const OBRAS = [
@@ -49,38 +49,43 @@ export function obrasEm(materiais) {
 export function obraDe(id) { return OBRAS.find(o => o.id === id); }
 
 // Sugestoes na tela de configuracao. Nenhum habito esta ligado a nenhuma obra.
+// Lista generica de proposito: este repositorio e publico. Os habitos de quem usa
+// o app ficam so no localStorage dele, nunca no codigo.
 export const SUGESTOES_HABITOS = [
-  { nome: 'Treino',       icone: '🏋️' },
-  { nome: 'Cardio',       icone: '🏃' },
-  { nome: 'Jiu-jitsu',    icone: '🥋' },
-  { nome: 'Devocional',   icone: '📖' },
-  { nome: 'Oração',       icone: '🙏' },
-  { nome: 'Sem besteira', icone: '🥗' },
-  { nome: 'Água 2 L',     icone: '💧' },
-  { nome: 'Dormir cedo',  icone: '😴' },
-  { nome: 'Estudar',      icone: '📚' },
-  { nome: 'Ler',          icone: '📕' },
-  { nome: 'Skincare',     icone: '🧴' },
-  { nome: 'Minoxidil',    icone: '🧑' },
-  { nome: 'Projeto',      icone: '🛠️' },
+  { nome: 'Treino',          icone: '🏋️' },
+  { nome: 'Caminhada',       icone: '🚶' },
+  { nome: 'Cardio',          icone: '🏃' },
+  { nome: 'Alongamento',     icone: '🤸' },
+  { nome: 'Beber água',      icone: '💧' },
+  { nome: 'Dormir cedo',     icone: '😴' },
+  { nome: 'Comer bem',       icone: '🥗' },
+  { nome: 'Ler',             icone: '📕' },
+  { nome: 'Estudar',         icone: '📚' },
+  { nome: 'Meditar',         icone: '🧘' },
+  { nome: 'Arrumar a casa',  icone: '🧹' },
+  { nome: 'Skincare',        icone: '🧴' },
+  { nome: 'Projeto pessoal', icone: '🛠️' },
 ];
+// 'cena' = o que a compra faz aparecer na ilha (mesa posta / luz da TV / nada).
+// A cena le esta etiqueta; o nome da recompensa e do usuario e a ilha nao o le.
 export const SUGESTOES_RECOMPENSAS = [
-  { nome: 'Esfiha à noite', desc: 'depois do jantar', preco: 15 },
-  { nome: '1 hora de TV',   desc: 'série, filme, o que for', preco: 10 },
+  { nome: 'Comida favorita', desc: 'aquilo que você só come de vez em quando', preco: 15, cena: 'mesa' },
+  { nome: 'Sobremesa',       desc: '', preco: 12, cena: 'mesa' },
+  { nome: 'Pedir delivery',  desc: 'hoje ninguém cozinha', preco: 40, cena: 'mesa' },
+  { nome: '1 hora de tela',  desc: 'série, filme, jogo — o que for', preco: 10, cena: 'tv' },
   { nome: 'Dia de descanso', desc: 'folga de um hábito hoje, sem quebrar a sequência', preco: 25, folga: true },
-  { nome: 'Pizza',          desc: 'fim de semana', preco: 40 },
-  { nome: 'Sorvete',        desc: '', preco: 12 },
-  { nome: 'Compra pequena', desc: 'aquele mimo', preco: 60 },
+  { nome: 'Passeio',         desc: 'sair sem motivo', preco: 50 },
+  { nome: 'Compra pequena',  desc: 'aquele mimo', preco: 60 },
 ];
-const DEFAULT_HABITOS = [
-  { id: 'treino',     nome: 'Treino',       icone: '🏋️', tipo: 'diario', dias: [], vezes: 0 },
-  { id: 'devocional', nome: 'Devocional',   icone: '📖', tipo: 'diario', dias: [], vezes: 0 },
-  { id: 'comida',     nome: 'Sem besteira', icone: '🥗', tipo: 'diario', dias: [], vezes: 0 },
-];
-const DEFAULT_REWARDS = [
-  { id: 'esfiha',   nome: 'Esfiha à noite', desc: 'Uma esfiha (ou duas) depois do jantar', preco: 15 },
-  { id: 'tv',       nome: '1 hora de TV',   desc: 'Série, filme, o que for', preco: 10 },
-  { id: 'descanso', nome: 'Dia de descanso', desc: 'Folga do treino hoje. Não quebra a sequência', preco: 25, folga: 'treino' },
+// O app nasce VAZIO: sem habito e sem recompensa. Quem abre escolhe os seus na
+// tela de configuracao. Nada de default aqui — default vira o habito de todo
+// mundo que instala, e a lista de habitos de uma pessoa e dado pessoal dela.
+// A lista abaixo so converte um save 'ilha.v1' (formato de 20/09/2026, 3 habitos
+// fixos) e nunca aparece pra quem instala o app agora.
+const HABITOS_V1 = [
+  { id: 'treino',     nome: 'Treino',    icone: '🏋️', tipo: 'diario', dias: [], vezes: 0 },
+  { id: 'devocional', nome: 'Leitura',   icone: '📖', tipo: 'diario', dias: [], vezes: 0 },
+  { id: 'comida',     nome: 'Comer bem', icone: '🥗', tipo: 'diario', dias: [], vezes: 0 },
 ];
 
 export function today(d = new Date()) {
@@ -94,11 +99,14 @@ export const uid = () => Math.random().toString(36).slice(2, 8);
 export function load() {
   let s = null;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch {}
-  if (!s) { // migra v1 (habitos fixos do Kevin)
+  let veioDoV1 = false;
+  if (!s) { // migra v1 (formato antigo, de 3 habitos fixos)
     let v1 = null; try { v1 = JSON.parse(localStorage.getItem('ilha.v1')); } catch {}
+    veioDoV1 = !!v1;
     s = v1 ? { ...v1, setupDone: true } : {};
   }
-  s.habitos = s.habitos || DEFAULT_HABITOS.map(h => ({ ...h }));
+  // instalacao nova: nenhum habito. A configuracao abre no primeiro uso pedindo os seus.
+  s.habitos = s.habitos || (veioDoV1 ? HABITOS_V1.map(h => ({ ...h })) : []);
   // 'desde' = dia em que o habito entrou. Antes disso ele nao conta: um habito novo
   // nao pode quebrar sequencia nem tirar moedas de dias que ja passaram.
   s.habitos.forEach(h => {
@@ -110,7 +118,7 @@ export function load() {
   });
   s.days = s.days || {};            // 'YYYY-MM-DD' -> { [habitId]: true, folga: { [habitId]: true } }
   s.purchases = s.purchases || [];  // { date, id, preco }
-  s.rewards = s.rewards || DEFAULT_REWARDS.map(r => ({ ...r }));
+  s.rewards = s.rewards || [];
   s.snapshots = s.snapshots || [];
   s.shieldsUsed = s.shieldsUsed || {};
   s.milestonesPaid = s.milestonesPaid || [];
