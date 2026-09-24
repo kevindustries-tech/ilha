@@ -66,13 +66,11 @@ export const SUGESTOES_HABITOS = [
   { nome: 'Skincare',        icone: '🧴' },
   { nome: 'Projeto pessoal', icone: '🛠️' },
 ];
-// 'cena' = o que a compra faz aparecer na ilha (mesa posta / luz da TV / nada).
-// A cena le esta etiqueta; o nome da recompensa e do usuario e a ilha nao o le.
 export const SUGESTOES_RECOMPENSAS = [
-  { nome: 'Comida favorita', desc: 'aquilo que você só come de vez em quando', preco: 15, cena: 'mesa' },
-  { nome: 'Sobremesa',       desc: '', preco: 12, cena: 'mesa' },
-  { nome: 'Pedir delivery',  desc: 'hoje ninguém cozinha', preco: 40, cena: 'mesa' },
-  { nome: '1 hora de tela',  desc: 'série, filme, jogo — o que for', preco: 10, cena: 'tv' },
+  { nome: 'Comida favorita', desc: 'aquilo que você só come de vez em quando', preco: 15 },
+  { nome: 'Sobremesa',       desc: '', preco: 12 },
+  { nome: 'Pedir delivery',  desc: 'hoje ninguém cozinha', preco: 40 },
+  { nome: '1 hora de tela',  desc: 'série, filme, jogo — o que for', preco: 10 },
   { nome: 'Dia de descanso', desc: 'folga de um hábito hoje, sem quebrar a sequência', preco: 25, folga: true },
   { nome: 'Passeio',         desc: 'sair sem motivo', preco: 50 },
   { nome: 'Compra pequena',  desc: 'aquele mimo', preco: 60 },

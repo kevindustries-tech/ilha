@@ -265,19 +265,6 @@ export function buildFogueira() {
   const light = new THREE.PointLight(0xff8c3a, 0, 9, 1.6); light.position.y = .8; light.name = 'fire'; g.add(light);
   return g;
 }
-export function buildMesa() {
-  const g = new THREE.Group();
-  g.add(box(.9, .06, .6, C.wood, 0, .5, 0)); for (const [x, z] of [[-.4, -.25], [.4, -.25], [-.4, .25], [.4, .25]]) g.add(cyl(.03, .03, .5, C.wood, x, 0, z, 5));
-  g.add(cyl(.22, .22, .03, 0xffffff, 0, .56, 0, 12)); g.add(sphere(.09, 0xd9a066, -.06, .64, 0)); g.add(sphere(.09, 0xd9a066, .08, .64, .04));
-  g.add(cyl(.02, .02, .35, 0xf1c40f, .35, .56, .2, 6, { emissive: 0xffaa00, emissiveIntensity: 1 }));
-  return g;
-}
-export function buildTV() {
-  const g = new THREE.Group();
-  g.add(box(.9, .55, .06, 0x111111, 0, .4, 0)); g.add(box(.8, .45, .02, 0x3ea0ff, 0, .45, .04, { emissive: 0x2b7fff, emissiveIntensity: 1.6 }));
-  const l = new THREE.PointLight(0x4ea8ff, 1.2, 4); l.position.set(0, .7, .8); l.name = 'tv'; g.add(l);
-  return g;
-}
 // ---------- desbloqueaveis ----------
 function farol() { const g = new THREE.Group(); g.add(cyl(.35, .5, 2.6, 0xffffff, 0, 0, 0, 10)); g.add(cyl(.36, .36, .4, C.roof, 0, .9, 0, 10)); g.add(cyl(.36, .36, .4, C.roof, 0, 1.8, 0, 10)); g.add(cyl(.42, .42, .5, 0x222222, 0, 2.6, 0, 10)); g.add(cyl(.3, .3, .45, 0xfff3b0, 0, 2.62, 0, 10, { emissive: 0xffe066, emissiveIntensity: 1 })); g.add(cone(.5, .4, C.roof, 0, 3.1, 0, 10)); return g; }
 function ilhaVizinha() { const g = new THREE.Group(); g.add(cyl(3, 3.6, 1.2, C.sand, 0, -1.0, 0, 9)); g.add(cyl(2.4, 2.8, .6, C.grass, 0, 0, 0, 9)); g.add(tree(1.1, .6, .3)); g.add(tree(.8, -.9, -.6)); return g; }
@@ -762,7 +749,10 @@ export function createScene(canvas) {
     const fogo = cone(.2, .5, C.flame, -.5, 1.9, .2, 5, { emissive: 0x883300, emissiveIntensity: .8 }); fogo.name = 'fumaca'; g.add(fogo);
     return g;
   }
-  const aviao = buildAviao(); aviao.position.set(31.5, .35, -28.5); aviao.rotation.y = -.7; island.add(aviao);
+  // Destrocos na praia nordeste. O y vem do terreno: com y fixo o aviao ficou 5 m
+  // enterrado quando a ilha virou malha gerada (antes o mapa era um disco chapado).
+  const AVIAO = [48.2, -43.6];
+  const aviao = buildAviao(); aviao.position.set(AVIAO[0], alturaIlha(AVIAO[0], AVIAO[1]) - .15, AVIAO[1]); aviao.rotation.y = -.7; island.add(aviao);
   // BARRACA feita com a lona do aviao: primeira casa do Bob (some quando a casa da familia chega)
   function buildBarraca() {
     const g = new THREE.Group();
@@ -778,7 +768,9 @@ export function createScene(canvas) {
   function put(name, obj, x, z, rotY = 0) {
     if (slots[name]) { island.remove(slots[name]); slots[name].traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
     if (!obj) { delete slots[name]; return; }
-    obj.position.set(x, .55, z); obj.rotation.y = rotY; island.add(obj); slots[name] = obj;
+    // y do terreno: dentro do planalto da vila alturaIlha devolve .55 exato, entao a vila
+    // nao se mexe. Com y fixo, lote fora do planalto (pier, farol) ficava enterrado.
+    obj.position.set(x, alturaIlha(x, z), z); obj.rotation.y = rotY; island.add(obj); slots[name] = obj;
   }
   // desbloqueaveis (posicoes fixas)
   // o farol saiu daqui: virou obra (ver OBRA_LOTE)
@@ -845,7 +837,7 @@ export function createScene(canvas) {
       horta:    [-3.6, 5.6, -.6],          deposito: [2.6, -2.8, .4],   cabana:  [1.4, 9.6, Math.PI],
       fogao:    [4.4, 9.2, Math.PI - .3],  poco:     [-1.9, 2.4, 0],    oficina: [-4.4, -5.8, .5],
       curral:   [-8.8, -6.6, .9],          moinho:   [-9.0, 8.6, .6],   radio:   [-6.6, -10.2, 0],
-      pier:     [4.0, 44.0, Math.PI],      farol:    [-30.0, 32.0, .4], casa1:   [7.4, 7.4, -2.2],
+      pier:     [6.6, 74.8, Math.PI / 2],  farol:    [-46.3, 49.8, .4], casa1:   [7.4, 7.4, -2.2],
       praca:    [Math.cos(1.5) * 12.4, Math.sin(1.5) * 12.4, -1.5 - Math.PI / 2],
       posto:    [-9.4, 11.2, -.4],         escola:   [10.6, 10.4, -2.4],
       mercado:  [-12.4, 4.6, 1.3],         camara:   [11.8, -3.2, -1.9],
@@ -892,15 +884,12 @@ export function createScene(canvas) {
 
     const dp = v.deposito || {};
     put('deposito_pilha', buildDeposito(dp.toras || 0, dp.pedras || 0, !!dp.madeiraHoje, !!dp.pedraHoje), 2.6, -1.0, .4);
-    // v.compras chega como etiquetas de cena ('mesa', 'tv') escolhidas na configuracao.
-    // Antes era um regex no NOME da recompensa: acoplava a cena aos nomes de quem
-    // escreveu a lista e nao aparecia nada pra qualquer outro nome.
-    const cenas = new Set(v.compras || []);
-    v.mesa = cenas.has('mesa'); v.tv = cenas.has('tv');
+    // Compra nao aparece na ilha. Ja foi: um regex no nome da recompensa decidia
+    // entre mesa posta e luz da TV. Recompensa e coisa da vida de quem usa e nao
+    // tem fim — nao da pra ter um objeto 3D pra cada, nem catalogada em categoria.
+    // A ilha reflete habito e sequencia; a rede continua, mas vem da folga (v.descanso).
     put('rede', v.descanso ? buildRede() : null, 4.6, 5.4, .4);
     put('personagem', charsReady() && !v.descanso ? makeChar(SKINS.bob, .9 + Math.min(v.fit, 12) * .012) : buildPersonagem(v.fit, v.descanso), v.descanso ? 4.6 : 3.2, v.descanso ? 5.4 : 3.2, v.descanso ? .4 : Math.PI);
-    put('mesa', v.mesa ? buildMesa() : null, 1.6, -1.2, .3);
-    put('tv', v.tv ? buildTV() : null, -1.8, -.2, 2.6);
     // moradores: Bob comecou sozinho; os outros chegam com os marcos
     const hab = v.habitantes || [];
     const temCasa = hab.some(h => h.id === 'casa');   // casa da familia (marco de 120 dias)

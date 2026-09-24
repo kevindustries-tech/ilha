@@ -45,8 +45,6 @@ function render() {
     obras: obras.feitas, obraAtual: obras.atual, deposito: dep, done,
     perfectToday: SIM !== null || S.isPerfect(state, iso), descanso: folgaAlguma,
     fit: S.level(tot.checks).lvl + tot.checks / 14,
-    // a ilha recebe a etiqueta de cena da recompensa ('mesa', 'tv'), nunca o nome dela
-    compras: state.purchases.filter(p => p.date === iso).map(p => (state.rewards.find(r => r.id === p.id) || {}).cena || '').filter(Boolean),
     unlocked: { birds: tot.perfect >= 7, farol: tot.perfect >= 30, ponte: tot.perfect >= 60, vizinha: tot.perfect >= 60, navio: tot.perfect >= 100, montanha: tot.perfect >= 200 },
     weather: SIM !== null ? { clear: +SIM >= 7, fog: false } : S.weather(state),
     habitantes: S.habitantes(tot.perfect), tecnologias: S.tecnologias(tot.checks), ilhasExtras: S.ilhasExtras(tot.perfect),
@@ -84,7 +82,7 @@ function loja() {
   const c = S.coins(state);
   open(head(`🛒 Loja · <span style="color:var(--gold)">${c} moedas</span>`) +
     (c < 0 ? `<div class="d" style="font-size:13px;color:#ff8a80;margin-bottom:8px">Você está devendo ${-c} moeda${c < -1 ? 's' : ''}. As próximas moedas que ganhar pagam a dívida primeiro.</div>` : '') +
-    `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:8px">Compra de manhã, aproveita à noite. O que você compra aparece na ilha hoje.</div>` +
+    `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:8px">Compra de manhã, aproveita à noite — decisão com a cabeça fria.</div>` +
     state.rewards.map(r => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}${r.folga ? ' · folga de ' + esc((state.habitos.find(h => h.id === r.folga) || {}).nome || '?') : ''}</div></div>
       <div style="display:flex;gap:6px;align-items:center"><span style="color:var(--gold);font-weight:800">${r.preco}</span>
       <button class="buy${c < r.preco ? ' fiado' : ''}" data-id="${r.id}" data-preco="${r.preco}" ${r.folga && S.boughtToday(state, r.id) ? 'disabled' : ''}>${S.boughtToday(state, r.id) ? 'de novo' : c < r.preco ? 'fiado' : 'comprar'}</button></div></div>`).join('') +
@@ -268,16 +266,14 @@ function setup(passo = 1) {
       <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:6px">O que você quer poder comprar com as moedas dos hábitos? Toque pra adicionar e ajuste o preço (1 moeda ≈ 1 hábito cumprido; dia perfeito dá +2).</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_RECOMPENSAS.map((s, i) => draft.rewards.some(r => r.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outra</button></div>
       ${draft.rewards.map((r, i) => `<div class="row"><div><div class="t">${esc(r.nome)}</div><div class="d">${esc(r.desc || '')}</div>
-        <div class="d" style="margin-top:4px">na ilha: <select class="price" style="width:auto" data-cena="${i}"><option value="">nada</option><option value="mesa" ${r.cena === 'mesa' ? 'selected' : ''}>mesa posta</option><option value="tv" ${r.cena === 'tv' ? 'selected' : ''}>luz da TV</option></select></div>
         ${r.folga !== undefined ? `<div class="d" style="margin-top:4px">folga de: <select class="price" style="width:auto" data-folga="${i}">${draft.habitos.map(h => `<option value="${h.id}" ${r.folga === h.id ? 'selected' : ''}>${h.icone} ${esc(h.nome)}</option>`).join('')}</select></div>` : ''}</div>
         <div style="display:flex;gap:6px;align-items:center"><input class="price" type="number" min="1" value="${r.preco}" data-preco="${i}"><button class="ghost" data-del="${i}">✕</button></div></div>`).join('') || '<div class="d">Nenhuma recompensa ainda.</div>'}
       <button class="ghost" id="btconta" style="margin-top:14px;width:100%">☁️ conta e backup na nuvem</button>
       <div style="display:flex;gap:8px;margin-top:8px"><button class="ghost" id="volta">← hábitos</button><button class="buy" id="ok" style="flex:1" ${draft.rewards.length ? '' : 'disabled'}>${state.setupDone ? 'salvar' : 'começar a ilha 🏝️'}</button></div>`, state.setupDone);
-    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, cena: s.cena || '', ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
-    $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco, cena: '' }); setup(2); };
+    sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_RECOMPENSAS[+b.dataset.sug]; draft.rewards.push({ id: S.uid(), nome: s.nome, desc: s.desc, preco: s.preco, ...(s.folga ? { folga: (draft.habitos[0] || {}).id || '' } : {}) }); setup(2); });
+    $('#novo').onclick = () => { const nome = prompt('Nome da recompensa:'); if (!nome) return; const preco = +prompt('Preço em moedas:', '20') || 20; draft.rewards.push({ id: S.uid(), nome: nome.trim(), desc: '', preco }); setup(2); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.rewards.splice(+b.dataset.del, 1); setup(2); });
     sheet.querySelectorAll('[data-preco]').forEach(i => i.onchange = () => { draft.rewards[+i.dataset.preco].preco = Math.max(1, +i.value || 1); });
-    sheet.querySelectorAll('[data-cena]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.cena].cena = s.value; });
     sheet.querySelectorAll('[data-folga]').forEach(s => s.onchange = () => { draft.rewards[+s.dataset.folga].folga = s.value; });
     $('#btconta').onclick = conta;
     $('#volta').onclick = () => setup(1);
