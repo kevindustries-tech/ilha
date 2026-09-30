@@ -7,6 +7,16 @@ export const SKINS = {
   bob: 'survivorMaleB', amigo1: 'criminalMaleA', amiga1: 'skaterFemaleA', amor: 'survivorFemaleA',
   bebe: 'skaterFemaleA', amigo2: 'skaterMaleA', festa: 'cyborgFemaleA',
 };
+// Quem a pessoa pode ser na ilha (skins Kenney que ja estao em assets/).
+export const AVATARES = [
+  { skin: 'survivorMaleB',   nome: 'Sobrevivente', ele: true },
+  { skin: 'survivorFemaleA', nome: 'Sobrevivente', ele: false },
+  { skin: 'skaterMaleA',     nome: 'Skatista',     ele: true },
+  { skin: 'skaterFemaleA',   nome: 'Skatista',     ele: false },
+  { skin: 'criminalMaleA',   nome: 'Fugitivo',     ele: true },
+  { skin: 'cyborgFemaleA',   nome: 'Ciborgue',     ele: false },
+];
+export const skinDoAvatar = a => AVATARES.some(x => x.skin === a) ? a : SKINS.bob;
 const ALTURA = 1.75; // altura final do boneco (unidades da ilha)
 
 let base = null, clips = {}, textures = {}, loading = null;

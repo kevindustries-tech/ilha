@@ -1,4 +1,5 @@
 import { createScene, QUALIDADE } from './scene.js';
+import { AVATARES } from './chars.js';
 import * as S from './state.js';
 import * as N from './nuvem.js';
 
@@ -12,7 +13,23 @@ const HORA = new URLSearchParams(location.search).get('hora');
 // nuvem. O jogo nunca espera a rede.
 function salvar() { S.save(state); N.agendarSubida(state, null, () => S.vitrine(state)); }
 
-function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, ms); }
+// AVISOS EM FILA. O toast antigo mostrava um so: quem chegasse por ultimo apagava o
+// anterior no mesmo instante. Foi assim que o "+10 da Primeira semana" e o "terminou a
+// obra" sumiram atras do "+1 moeda". Agora cada aviso espera o seu tempo; so um aviso
+// do MESMO tipo substitui o outro (clicar rapido nao empilha tres "+1 moeda").
+const filaAvisos = []; let avisoAtual = null, avisoTimer = 0;
+function toast(msg, ms = 2600, tipo = 'aviso') {
+  const i = filaAvisos.findIndex(x => x.tipo === tipo); if (i >= 0) filaAvisos.splice(i, 1);
+  if (avisoAtual && avisoAtual.tipo === tipo) { clearTimeout(avisoTimer); avisoAtual = null; }
+  filaAvisos.push({ msg, ms, tipo });
+  if (!avisoAtual) proximoAviso();
+}
+function proximoAviso() {
+  const t = $('#toast'), x = filaAvisos.shift();
+  if (!x) { avisoAtual = null; t.style.opacity = 0; return; }
+  avisoAtual = x; t.textContent = x.msg; t.style.opacity = 1;
+  avisoTimer = setTimeout(proximoAviso, x.ms);
+}
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- render ----------
@@ -38,17 +55,17 @@ function render() {
   const vt = S.vitrine(state, iso);
   if (SIM !== null) Object.assign(vt, { perfeitos: tot.perfect, materiais: tot.checks, sequencia: ps, obras: obras.feitas, obraAtual: obras.atual,
     perfeitoHoje: true, feitosHoje: state.habitos.length, folgaHoje: false, clima: { clear: +SIM >= 7, fog: false } });
-  scene.apply(vistaDe(visita ? visita.vitrine : vt));
+  scene.apply({ ...vistaDe(visita ? visita.vitrine : vt), dono: visita ? visita.amigo : 'eu' });
   mostraVisita();
   if (SIM === null) {
     const primeira = !state.obrasVistas;
     state.obrasVistas = state.obrasVistas || [];
     for (const id of obras.feitas) if (!state.obrasVistas.includes(id)) {
       state.obrasVistas.push(id);
-      if (!primeira) { const o = S.obraDe(id); toast(`🔨 ${state.nome} terminou: ${o.nome}. ${o.desc}`, 5200); }
+      if (!primeira) { const o = S.obraDe(id); toast(`🔨 ${state.nome} terminou: ${o.nome}. ${o.desc}`, 5200, 'obra:' + id); }
     }
   }
-  if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000); }
+  if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000, 'marco:' + m.dias); }
   salvar();
 }
 // Numeros de uma vitrine -> o que a cena desenha. Serve pra minha ilha e pra de um
@@ -62,7 +79,7 @@ function vistaDe(vt) {
     // o deposito mostra o que ja foi juntado pra obra em andamento (metade tora, metade pedra)
     deposito: { toras: Math.ceil(tem / 2), pedras: Math.floor(tem / 2), madeiraHoje: feitos > 0, pedraHoje: feitos > 1 },
     perfectToday: hoje && !!vt.perfeitoHoje, descanso: hoje && !!vt.folgaHoje,
-    fit: S.level(m).lvl + m / 14, avatar: vt.avatar || 'bob',
+    fit: S.level(m).lvl + m / 14, avatar: vt.avatar,
     unlocked: { birds: p >= 7, farol: p >= 30, ponte: p >= 60, vizinha: p >= 60, navio: p >= 100, montanha: p >= 200 },
     weather: vt.clima || { clear: false, fog: false },
     habitantes: S.habitantes(p), tecnologias: S.tecnologias(m), ilhasExtras: S.ilhasExtras(p),
@@ -146,19 +163,20 @@ async function amigos() {
 
 function clickHabit(id) {
   const before = S.coins(state), marcosAntes = S.marcosAlcancados(state).map(m => m.dias);
-  S.toggle(state, id); salvar(); render();
-  const after = S.coins(state), iso = S.today();
-  if (!S.checked(state, iso, id)) return;
-  scene.pulse('deposito_pilha');
-  // O bonus de marco entra no saldo junto com o dia. Sem separar, o 7o dia perfeito
-  // mostrava "Dia perfeito! +13" (1 do habito + 2 do dia + 10 da Primeira semana) e o
-  // toast do marco, disparado no render(), era sobrescrito antes de aparecer.
-  const novos = S.marcosAlcancados(state).filter(m => !marcosAntes.includes(m.dias));
-  const doMarco = novos.reduce((t, m) => t + m.bonus, 0), doDia = after - before - doMarco;
-  const marco = novos.map(m => ` 🏆 ${m.nome}: +${m.bonus} (desbloqueou ${m.desbloqueia}).`).join('');
-  const mult = S.multiplierAt(state, iso), vezes = mult > 1 ? ` (sequência ×${String(mult).replace('.', ',')})` : '';
-  if (S.isPerfect(state, iso)) toast(`✨ Dia perfeito! +${doDia} moedas${vezes}.${marco} A fogueira acende hoje à noite.`, marco ? 6000 : 3000);
-  else toast(`+${doDia} moeda${doDia > 1 ? 's' : ''}${vezes}${marco}`, marco ? 6000 : 2600);
+  S.toggle(state, id); salvar();
+  const after = S.coins(state), iso = S.today(), marcou = S.checked(state, iso, id);
+  if (marcou) {
+    // O bonus de marco entra no saldo junto com o dia: separa, senao o 7o dia perfeito
+    // dizia "Dia perfeito! +13" (1 do habito + 2 do dia + 10 da Primeira semana). O marco
+    // e a obra nova tem aviso proprio, que o render() poe na fila logo depois deste.
+    const doMarco = S.marcosAlcancados(state).filter(m => !marcosAntes.includes(m.dias)).reduce((t, m) => t + m.bonus, 0);
+    const doDia = after - before - doMarco;
+    const mult = S.multiplierAt(state, iso), vezes = mult > 1 ? ` (sequência ×${String(mult).replace('.', ',')})` : '';
+    if (S.isPerfect(state, iso)) toast(`✨ Dia perfeito! +${doDia} moedas${vezes}. A fogueira acende hoje à noite.`, 3000, 'moeda');
+    else toast(`+${doDia} moeda${doDia > 1 ? 's' : ''}${vezes}`, 2200, 'moeda');
+  }
+  render();
+  if (marcou) scene.pulse('deposito_pilha');
 }
 
 // ---------- modais ----------
@@ -330,11 +348,13 @@ async function sincronizar(contaNova) {
 // ---------- configuracao (primeira vez e edicao) ----------
 let draft = null;
 function setup(passo = 1) {
-  if (!draft) draft = { nome: state.nome, habitos: state.habitos.map(h => ({ ...h, dias: [...(h.dias || [])] })), rewards: state.rewards.map(r => ({ ...r })) };
+  if (!draft) draft = { nome: state.nome, avatar: state.avatar || AVATARES[0].skin, habitos: state.habitos.map(h => ({ ...h, dias: [...(h.dias || [])] })), rewards: state.rewards.map(r => ({ ...r })) };
   const LETRA_DIA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];   // nao usar 'N' aqui: sombreia o import da nuvem
   if (passo === 1) {
     open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de ${state.setupDone ? 2 : 3}</span></h2>
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
+      <div class="t" style="margin:10px 0 6px">Quem é você na ilha</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">${AVATARES.map(a => `<button class="ghost" data-avatar="${a.skin}" style="padding:8px 4px;${draft.avatar === a.skin ? 'background:var(--ok);color:#053;font-weight:700' : ''}">${a.ele ? '👨' : '👩'} ${a.nome}</button>`).join('')}</div>
       ${state.setupDone ? `<div class="row"><div><div class="t">Gráficos</div><div class="d">leve: menos mata e sem brilho noturno — pra celular mais simples</div></div><select class="price" style="width:auto" id="qual"><option value="alta" ${QUALIDADE !== 'leve' ? 'selected' : ''}>alta</option><option value="leve" ${QUALIDADE === 'leve' ? 'selected' : ''}>leve</option></select></div>` : ''}
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
       <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
@@ -347,6 +367,7 @@ function setup(passo = 1) {
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
     $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
+    sheet.querySelectorAll('[data-avatar]').forEach(b => b.onclick = () => { draft.nome = $('#nome').value.trim() || draft.nome; draft.avatar = b.dataset.avatar; setup(1); });
     // qualidade e deste aparelho (localStorage), nao da conta: um celular fraco nao rebaixa o PC
     if ($('#qual')) $('#qual').onchange = e => { try { localStorage.setItem('ilha.qualidade', e.target.value); } catch {} if (confirm('Recarregar agora pra aplicar os gráficos?')) location.reload(); };
     sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
@@ -376,7 +397,7 @@ function setup(passo = 1) {
       draft.rewards.forEach(r => { if (r.folga !== undefined && !draft.habitos.some(h => h.id === r.folga)) r.folga = (draft.habitos[0] || {}).id; });
       const primeiraVez = !state.setupDone;
       // guarda hábitos e recompensas ja; setupDone so no fim, senao da pra escapar do passo 3
-      state.nome = draft.nome; state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
+      state.nome = draft.nome; state.avatar = draft.avatar; state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
       if (primeiraVez) { salvar(); return setup(3); }
       salvar(); close(); render(); N.garantirPerfil(state.nome); toast(`De volta à ilha, ${state.nome}. 🏝️`, 3000);
     };

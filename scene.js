@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { fundirEstatico, JANELA } from './fundir.js';
-import { loadChars, charsReady, makeChar, SKINS } from './chars.js';
+import { loadChars, charsReady, makeChar, SKINS, skinDoAvatar } from './chars.js';
 import { criarGrade } from './rotas.js';
 import { criarMar, materialRio, materialCachoeira, materialLago, criarNevoa, atualizarAgua } from './agua.js';
 import { CONSTRUTORES, criarAraras, criarVidaMarinha, criarNavios } from './vida.js';
@@ -1107,6 +1107,9 @@ export function createScene(canvas) {
     };
     // lote em unidades antigas -> mundo (x EV). Pier e farol ja vem em coordenada do mundo.
     const loteDe = id => { const L = OBRA_LOTE[id]; return L[3] ? L : [L[0] * EV, L[1] * EV, L[2]]; };
+    // Festa so quando a obra fica pronta de verdade: nao no primeiro desenho da ilha e
+    // nao quando a cena troca de dono (visitar amigo "construiria" tudo de uma vez).
+    const dono = v.dono || 'eu', celebrar = donoAnterior === dono; donoAnterior = dono;
     const feitas = v.obras || [];
     if (nObras !== feitas.length && !mexeu) { nObras = feitas.length; enquadrar(); }
     const temCabana = feitas.includes('cabana');
@@ -1117,6 +1120,7 @@ export function createScene(canvas) {
       if (!mostra) { if (slots[key]) put(key, null, 0, 0); continue; }
       if (slots[key]) continue;                       // ja esta de pe, nao reconstroi
       const L = loteDe(id); put(key, OBRA_BUILD[id](), L[0], L[1], L[2]);
+      if (celebrar) festejar(slots[key]);
     }
     // a obra em andamento aparece como andaime no proprio lote dela
     const oa = v.obraAtual;
@@ -1130,7 +1134,7 @@ export function createScene(canvas) {
     // tem fim — nao da pra ter um objeto 3D pra cada, nem catalogada em categoria.
     // A ilha reflete habito e sequencia; a rede continua, mas vem da folga (v.descanso).
     put('rede', v.descanso ? buildRede() : null, 4.6 * EV, 5.4 * EV, .4);
-    put('personagem', charsReady() && !v.descanso ? makeChar(SKINS.bob, .9 + Math.min(v.fit, 12) * .012) : buildPersonagem(v.fit, v.descanso), (v.descanso ? 4.6 : 3.2) * EV, (v.descanso ? 5.4 : 3.2) * EV, v.descanso ? .4 : Math.PI);
+    put('personagem', charsReady() && !v.descanso ? makeChar(skinDoAvatar(v.avatar), .9 + Math.min(v.fit, 12) * .012) : buildPersonagem(v.fit, v.descanso), (v.descanso ? 4.6 : 3.2) * EV, (v.descanso ? 5.4 : 3.2) * EV, v.descanso ? .4 : Math.PI);
     // moradores: Bob comecou sozinho; os outros chegam com os marcos
     const hab = v.habitantes || [];
     const temCasa = hab.some(h => h.id === 'casa');   // casa da familia (marco de 120 dias)
@@ -1222,6 +1226,41 @@ export function createScene(canvas) {
   }
 
   function pulse(name) { const g = slots[name]; if (g) pulses.push({ g, t: 0 }); }
+
+  // OBRA CONCLUIDA: brota do chao com um pop elastico, levanta poeira e solta confete.
+  let donoAnterior = null, festas = [];
+  const matPoeira = new THREE.MeshStandardMaterial({ color: 0xcbb38b, roughness: 1, transparent: true, depthWrite: false });
+  const CORES_CONFETE = [0xef4444, 0xf59e0b, 0x22c55e, 0x3b82f6, 0xa855f7, 0xffffff];
+  function festejar(g) {
+    if (!g) return;
+    const fx = new THREE.Group(); fx.position.copy(g.position); island.add(fx);
+    const raio = Math.max(2.5, (g.userData.esc ? g.userData.esc.x : 1) * 1.6);
+    const poeira = [], confete = [];
+    for (let i = 0; i < 18; i++) {
+      const a = i / 18 * 6.28, m = new THREE.Mesh(new THREE.IcosahedronGeometry(.6 + Math.random() * .5, 0), matPoeira.clone());
+      m.userData = { a, v: 2.5 + Math.random() * 2 }; m.position.set(Math.cos(a) * raio * .5, .3, Math.sin(a) * raio * .5); fx.add(m); poeira.push(m);
+    }
+    for (let i = 0; i < 28; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(.18, .04, .12), new THREE.MeshStandardMaterial({ color: CORES_CONFETE[i % 6], emissive: CORES_CONFETE[i % 6], emissiveIntensity: .25 }));
+      const a = Math.random() * 6.28, v = 3 + Math.random() * 4;
+      m.userData = { vx: Math.cos(a) * v * .5, vy: 7 + Math.random() * 5, vz: Math.sin(a) * v * .5, gx: Math.random() * 9, gz: Math.random() * 9 };
+      m.position.set(0, raio * .8, 0); fx.add(m); confete.push(m);
+    }
+    festas.push({ g, fx, t: 0, esc: g.userData.esc.clone(), poeira, confete, raio });
+    g.scale.copy(g.userData.esc).multiplyScalar(.05);
+  }
+  function atualizarFestas(dt) {
+    festas = festas.filter(f => {
+      f.t += dt;
+      // pop: sobe passando um pouco do tamanho e volta (ease-out-back)
+      const k = Math.min(1, f.t / .55), c = 1.9, pop = 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2);
+      f.g.scale.copy(f.esc).multiplyScalar(Math.max(.05, pop));
+      for (const m of f.poeira) { const u = m.userData, r = f.raio * .5 + f.t * u.v; m.position.set(Math.cos(u.a) * r, .3 + f.t * 1.2, Math.sin(u.a) * r); m.scale.setScalar(1 + f.t * 1.6); m.material.opacity = Math.max(0, .65 * (1 - f.t / 1.6)); }
+      for (const m of f.confete) { const u = m.userData; u.vy -= 14 * dt; m.position.x += u.vx * dt; m.position.y = Math.max(.05, m.position.y + u.vy * dt); m.position.z += u.vz * dt; m.rotation.x += u.gx * dt; m.rotation.z += u.gz * dt; }
+      if (f.t > 2.6) { island.remove(f.fx); f.fx.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); f.g.scale.copy(f.esc); return false; }
+      return true;
+    });
+  }
 
   const BRANCO = new THREE.Color(0xffffff);
   let last = performance.now();
@@ -1365,7 +1404,7 @@ export function createScene(canvas) {
       for (const l of b.g.userData.legs2 || []) l.rotation.x = -sw;
       if (b.rabo) b.rabo.rotation.y = Math.sin(t * (andando ? 5 : 1.5) + b.x) * .35;
     }
-    araras.atualizar(t); marinha.atualizar(t, dt); navios.atualizar(t, dt);
+    araras.atualizar(t); marinha.atualizar(t, dt); navios.atualizar(t, dt); atualizarFestas(dt);
     // brasa do fogao
     if (slots.obra_fogao) { const br = slots.obra_fogao.getObjectByName('brasa'); if (br) br.scale.setScalar(1 + Math.sin(t * 8) * .12); }
     // pulsos de feedback
