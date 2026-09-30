@@ -33,6 +33,14 @@
   .hab.rest { background:rgba(255,204,77,.18); border-color:var(--gold); }
   .hab.off { opacity:.55; }
   #actions { display:flex; gap:6px; }
+  .seg { display:flex; gap:6px; }
+  .seg button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:9px 4px; font-weight:600; font-size:13px; }
+  .seg button.sel { background:var(--ok); color:#053; border-color:var(--ok); }
+  .cores { display:flex; flex-wrap:wrap; gap:7px; }
+  .cor { width:30px; height:30px; border-radius:50%; border:2px solid rgba(255,255,255,.28); padding:0; }
+  .cor.sel { border-color:#fff; box-shadow:0 0 0 2px var(--ok); }
+  .cor.orig { position:relative; }
+  .cor.orig::after { content:''; position:absolute; inset:9px; border-radius:50%; border:2px solid rgba(255,255,255,.85); }
   #visita { display:none; justify-content:space-between; align-items:center; gap:10px; text-align:left; margin-bottom:10px; cursor:default; }
   #visita .buy { flex:0 0 auto; }
   #actions #btcfg { flex:0 0 46px; font-size:18px; padding:10px 0; }

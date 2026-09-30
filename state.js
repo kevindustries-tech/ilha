@@ -287,7 +287,7 @@ export function vitrine(s, iso = today()) {
   const tot = totals(s), ob = obrasEm(tot.checks), d = s.days[iso] || {}, a = ob.atual;
   const ativos = s.habitos.filter(h => !(h.desde && iso < h.desde));
   return {
-    v: 1, nome: s.nome || 'Bob', avatar: s.avatar || 'survivorMaleB', dia: iso,
+    v: 1, nome: s.nome || 'Bob', avatar: s.avatar || 'survivorMaleB', visual: s.visual || null, dia: iso,
     perfeitoHoje: isPerfect(s, iso),
     feitosHoje: ativos.filter(h => checked(s, iso, h.id)).length,
     devidosHoje: ativos.filter(h => isDue(h, iso)).length,

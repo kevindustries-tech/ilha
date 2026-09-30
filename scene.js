@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { fundirEstatico, JANELA } from './fundir.js';
-import { loadChars, charsReady, makeChar, SKINS, skinDoAvatar } from './chars.js';
+import { loadChars, charsReady, makeChar, SKINS, skinDoAvatar, visualSorteado } from './chars.js';
 import { criarGrade } from './rotas.js';
 import { criarMar, materialRio, materialCachoeira, materialLago, criarNevoa, atualizarAgua } from './agua.js';
 import { CONSTRUTORES, criarAraras, criarVidaMarinha, criarNavios } from './vida.js';
@@ -1134,7 +1134,7 @@ export function createScene(canvas) {
     // tem fim — nao da pra ter um objeto 3D pra cada, nem catalogada em categoria.
     // A ilha reflete habito e sequencia; a rede continua, mas vem da folga (v.descanso).
     put('rede', v.descanso ? buildRede() : null, 4.6 * EV, 5.4 * EV, .4);
-    put('personagem', charsReady() && !v.descanso ? makeChar(skinDoAvatar(v.avatar), .9 + Math.min(v.fit, 12) * .012) : buildPersonagem(v.fit, v.descanso), (v.descanso ? 4.6 : 3.2) * EV, (v.descanso ? 5.4 : 3.2) * EV, v.descanso ? .4 : Math.PI);
+    put('personagem', charsReady() && !v.descanso ? makeChar(skinDoAvatar(v.avatar), .9 + Math.min(v.fit, 12) * .012, v.visual) : buildPersonagem(v.fit, v.descanso), (v.descanso ? 4.6 : 3.2) * EV, (v.descanso ? 5.4 : 3.2) * EV, v.descanso ? .4 : Math.PI);
     // moradores: Bob comecou sozinho; os outros chegam com os marcos
     const hab = v.habitantes || [];
     const temCasa = hab.some(h => h.id === 'casa');   // casa da familia (marco de 120 dias)
@@ -1165,7 +1165,7 @@ export function createScene(canvas) {
     const npcAtivos = new Set();
     for (const h of hab) {
       let g = null, escala = 1;
-      if (h.tipo === 'pessoa' && h.id !== 'bob') g = charsReady() ? makeChar(SKINS[h.id] || 'skaterMaleA') : buildPessoa(h.cor, 1, [0x3b2a1a, 0x1c1c1c, 0xb45309, 0xf5deb3, 0x6b21a8][h.nome.length % 5]);
+      if (h.tipo === 'pessoa' && h.id !== 'bob') g = charsReady() ? makeChar(SKINS[h.id] || 'skaterMaleA', 1, visualSorteado(h.id, SKINS[h.id])) : buildPessoa(h.cor, 1, [0x3b2a1a, 0x1c1c1c, 0xb45309, 0xf5deb3, 0x6b21a8][h.nome.length % 5]);
       else if (h.tipo === 'crianca') { g = charsReady() ? makeChar(SKINS.bebe, .55) : buildPessoa(h.cor, .6, 0xf5deb3); escala = .6; }
       else if (h.tipo === 'cachorro') g = buildCachorro(h.cor);
       if (!g) continue;
@@ -1188,7 +1188,7 @@ export function createScene(canvas) {
       if (!feitas.includes(m.obra)) continue;
       const name = 'vila_' + m.id, casa = P[m.obra] || home, esc = m.crianca ? .62 : 1;
       if (!slots[name]) {
-        const g = charsReady() ? makeChar(m.skin, esc) : buildPessoa(0xe879a0, esc, 0x3b2a1a);
+        const g = charsReady() ? makeChar(m.skin, esc, visualSorteado(m.id, m.skin)) : buildPessoa(0xe879a0, esc, 0x3b2a1a);
         const st = npcState[name] || (npcState[name] = { x: casa[0] + (Math.random() - .5) * 2, z: casa[1] + 1, target: null, wait: Math.random() * 4 });
         put(name, g, st.x, st.z, 0);
       }

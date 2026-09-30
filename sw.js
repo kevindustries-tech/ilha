@@ -1,5 +1,5 @@
-const CACHE = 'ilha-v5.7';
-const APP = ['./', './index.html', './app.js', './scene.js', './state.js', './nuvem.js', './rotas.js', './natureza.js', './agua.js', './vida.js', './fundir.js', './som.js', './chars.js', './manifest.json', './icon-180.png', './icon-512.png'];
+const CACHE = 'ilha-v5.8';
+const APP = ['./', './index.html', './app.js', './scene.js', './state.js', './nuvem.js', './rotas.js', './natureza.js', './agua.js', './vida.js', './fundir.js', './som.js', './criador.js', './assets/visual.json', './chars.js', './manifest.json', './icon-180.png', './icon-512.png'];
 // Bibliotecas de CDN com versao fixa: nao mudam, entao vale guardar pra funcionar offline.
 const CDN_FIXO = ['cdn.jsdelivr.net/npm/three@', 'cdn.jsdelivr.net/npm/@supabase/'];   // (inclui os addons: pos-processamento, loaders)
 

@@ -1,5 +1,6 @@
 import { createScene, QUALIDADE } from './scene.js';
-import { AVATARES } from './chars.js';
+import { ESTILOS, PALETAS, PARTES, corOriginal } from './chars.js';
+import { criarPreview } from './criador.js';
 import * as SOM from './som.js';
 import * as S from './state.js';
 import * as N from './nuvem.js';
@@ -80,7 +81,7 @@ function vistaDe(vt) {
     // o deposito mostra o que ja foi juntado pra obra em andamento (metade tora, metade pedra)
     deposito: { toras: Math.ceil(tem / 2), pedras: Math.floor(tem / 2), madeiraHoje: feitos > 0, pedraHoje: feitos > 1 },
     perfectToday: hoje && !!vt.perfeitoHoje, descanso: hoje && !!vt.folgaHoje,
-    fit: S.level(m).lvl + m / 14, avatar: vt.avatar,
+    fit: S.level(m).lvl + m / 14, avatar: vt.avatar, visual: vt.visual || null,
     unlocked: { birds: p >= 7, farol: p >= 30, ponte: p >= 60, vizinha: p >= 60, navio: p >= 100, montanha: p >= 200 },
     weather: vt.clima || { clear: false, fog: false },
     habitantes: S.habitantes(p), tecnologias: S.tecnologias(m), ilhasExtras: S.ilhasExtras(p),
@@ -184,7 +185,8 @@ function clickHabit(id) {
 // ---------- modais ----------
 const modal = $('#modal'), sheet = $('#sheet');
 function open(html, fechavel = true) { sheet.innerHTML = html; modal.classList.add('open'); const x = sheet.querySelector('.x'); if (x) x.onclick = close; modal.dataset.lock = fechavel ? '' : '1'; }
-function close() { modal.classList.remove('open'); }
+let aoFechar = null;   // quem abriu algo que precisa ser desmontado (a previa 3D do criador)
+function close() { modal.classList.remove('open'); if (aoFechar) { const f = aoFechar; aoFechar = null; f(); } }
 modal.addEventListener('click', e => { if (e.target === modal && !modal.dataset.lock) close(); });
 const head = t => `<h2>${t}<button class="x">✕</button></h2>`;
 
@@ -350,13 +352,11 @@ async function sincronizar(contaNova) {
 // ---------- configuracao (primeira vez e edicao) ----------
 let draft = null;
 function setup(passo = 1) {
-  if (!draft) draft = { nome: state.nome, avatar: state.avatar || AVATARES[0].skin, habitos: state.habitos.map(h => ({ ...h, dias: [...(h.dias || [])] })), rewards: state.rewards.map(r => ({ ...r })) };
+  if (!draft) draft = { habitos: state.habitos.map(h => ({ ...h, dias: [...(h.dias || [])] })), rewards: state.rewards.map(r => ({ ...r })) };
   const LETRA_DIA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];   // nao usar 'N' aqui: sombreia o import da nuvem
   if (passo === 1) {
     open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de ${state.setupDone ? 2 : 3}</span></h2>
-      <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
-      <div class="t" style="margin:10px 0 6px">Quem é você na ilha</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">${AVATARES.map(a => `<button class="ghost" data-avatar="${a.skin}" style="padding:8px 4px;${draft.avatar === a.skin ? 'background:var(--ok);color:#053;font-weight:700' : ''}">${a.ele ? '👨' : '👩'} ${a.nome}</button>`).join('')}</div>
+      ${state.setupDone ? `<button class="ghost" id="btvisual" style="width:100%;margin-bottom:10px">✨ aparência e nome do personagem</button>` : ''}
       ${state.setupDone ? `<div class="row"><div><div class="t">Sons</div><div class="d">trilha calma e sons da ilha (mar, pássaros, grilos, fogueira)</div></div><div style="display:flex;gap:10px;white-space:nowrap"><label><input type="checkbox" id="sommus" ${SOM.preferencias().musica ? 'checked' : ''}> música</label><label><input type="checkbox" id="somnat" ${SOM.preferencias().natureza ? 'checked' : ''}> natureza</label></div></div>` : ''}
       ${state.setupDone ? `<div class="row"><div><div class="t">Gráficos</div><div class="d">leve: menos mata e sem brilho noturno — pra celular mais simples</div></div><select class="price" style="width:auto" id="qual"><option value="alta" ${QUALIDADE !== 'leve' ? 'selected' : ''}>alta</option><option value="leve" ${QUALIDADE === 'leve' ? 'selected' : ''}>leve</option></select></div>` : ''}
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
@@ -369,8 +369,7 @@ function setup(passo = 1) {
           ${h.tipo === 'semana' ? `<input class="price" type="number" min="1" max="7" value="${h.vezes || 3}" data-vezes="${i}"> <span class="d">vezes/semana</span>` : ''}
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
-    $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
-    sheet.querySelectorAll('[data-avatar]').forEach(b => b.onclick = () => { draft.nome = $('#nome').value.trim() || draft.nome; draft.avatar = b.dataset.avatar; setup(1); });
+    if ($('#btvisual')) $('#btvisual').onclick = () => abrirCriador({ aoTerminar: () => setup(1) });
     // qualidade e deste aparelho (localStorage), nao da conta: um celular fraco nao rebaixa o PC
     if ($('#sommus')) { $('#sommus').onchange = e => { SOM.configurar({ musica: e.target.checked }); iconeSom(); }; $('#somnat').onchange = e => { SOM.configurar({ natureza: e.target.checked }); iconeSom(); }; }
     if ($('#qual')) $('#qual').onchange = e => { try { localStorage.setItem('ilha.qualidade', e.target.value); } catch {} if (confirm('Recarregar agora pra aplicar os gráficos?')) location.reload(); };
@@ -401,7 +400,7 @@ function setup(passo = 1) {
       draft.rewards.forEach(r => { if (r.folga !== undefined && !draft.habitos.some(h => h.id === r.folga)) r.folga = (draft.habitos[0] || {}).id; });
       const primeiraVez = !state.setupDone;
       // guarda hábitos e recompensas ja; setupDone so no fim, senao da pra escapar do passo 3
-      state.nome = draft.nome; state.avatar = draft.avatar; state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
+      state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
       if (primeiraVez) { salvar(); return setup(3); }
       salvar(); close(); render(); N.garantirPerfil(state.nome); toast(`De volta à ilha, ${state.nome}. 🏝️`, 3000);
     };
@@ -443,16 +442,70 @@ function setup(passo = 1) {
 
 document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, amigos, config: () => setup(1) })[b.dataset.m]());
 
+// ---------- criador de personagem ----------
+// Corpo (homem/mulher), estilo de roupa e as cores da pele, cabelo, camiseta e calca, com
+// o boneco girando em 3D enquanto escolhe. Na primeira entrada vem antes dos habitos; quem
+// ja jogava escolhe uma vez ao abrir; depois, pelo ⚙️.
+async function abrirCriador({ obrigatorio = false, aoTerminar = null } = {}) {
+  const estiloDe = sk => ESTILOS.find(e => e.skin === sk) || ESTILOS[0];
+  const v = { ...(state.visual || { estilo: estiloDe(state.avatar).skin }) };
+  // instalacao nova: nome vazio ('Bob' pre-preenchido nao combina com quem escolhe mulher)
+  const nome = state.setupDone ? (state.nome || '') : '';
+  open(`<h2>✨ Seu personagem ${obrigatorio ? '' : '<button class="x">✕</button>'}</h2>
+    <canvas id="prev" style="width:100%;height:250px;display:block;border-radius:16px;background:linear-gradient(#7fc4ff,#e2f5ff);touch-action:none"></canvas>
+    <div class="d" style="text-align:center;margin:4px 0 8px;font-size:11px">arraste pra girar</div>
+    <div class="row"><div class="t">Nome</div><input class="price" style="width:160px" id="cnome" maxlength="20" placeholder="quem caiu na ilha" value="${esc(nome)}"></div>
+    <div id="ccontroles"></div>
+    <div id="cmsg" class="d" style="font-size:12px;color:#ff8a80;min-height:14px"></div>
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="ghost" id="csorte">🎲 sortear</button><button class="buy" id="cpronto" style="flex:1">${!state.setupDone ? 'continuar →' : 'pronto'}</button></div>`, !obrigatorio);
+  const prev = await criarPreview($('#prev'));
+  aoFechar = () => prev.destruir();
+  const desenhar = () => {
+    const est = estiloDe(v.estilo), corpo = est.corpo;
+    const linha = (parte, titulo) => {
+      const orig = corOriginal(v.estilo, parte);
+      const cores = [[null, orig], ...PALETAS[parte].map(c => [c, c])];
+      return `<div class="t" style="margin:10px 0 5px">${titulo}</div><div class="cores">${cores.map(([val, cor]) => `<button class="cor${(v[parte] || null) === val ? ' sel' : ''}${val === null ? ' orig' : ''}" data-parte="${parte}" data-cor="${val || ''}" style="background:${cor}" title="${val === null ? 'original do estilo' : cor}"></button>`).join('')}</div>`;
+    };
+    $('#ccontroles').innerHTML = `
+      <div class="seg"><button data-corpo="h" class="${corpo === 'h' ? 'sel' : ''}">👨 Homem</button><button data-corpo="m" class="${corpo === 'm' ? 'sel' : ''}">👩 Mulher</button></div>
+      <div class="t" style="margin:10px 0 5px">Estilo de roupa</div>
+      <div class="seg">${ESTILOS.filter(e => e.corpo === corpo).map(e => `<button data-estilo="${e.skin}" class="${e.skin === v.estilo ? 'sel' : ''}">${e.nome}</button>`).join('')}</div>
+      ${linha('pele', 'Pele')}${linha('cabelo', 'Cabelo')}${linha('camisa', 'Camiseta')}${linha('calca', 'Calça')}`;
+    $('#ccontroles').querySelectorAll('[data-corpo]').forEach(b => b.onclick = () => { if (estiloDe(v.estilo).corpo !== b.dataset.corpo) { v.estilo = ESTILOS.find(e => e.corpo === b.dataset.corpo).skin; atualizar(); } });
+    $('#ccontroles').querySelectorAll('[data-estilo]').forEach(b => b.onclick = () => { v.estilo = b.dataset.estilo; atualizar(); });
+    $('#ccontroles').querySelectorAll('[data-parte]').forEach(b => b.onclick = () => { v[b.dataset.parte] = b.dataset.cor || null; atualizar(); });
+  };
+  const atualizar = () => { desenhar(); prev.mostrar(v.estilo, v); };
+  $('#csorte').onclick = () => {
+    const doCorpo = ESTILOS.filter(e => e.corpo === estiloDe(v.estilo).corpo);
+    v.estilo = doCorpo[Math.floor(Math.random() * doCorpo.length)].skin;
+    for (const k of PARTES) v[k] = Math.random() < .2 ? null : PALETAS[k][Math.floor(Math.random() * PALETAS[k].length)];
+    atualizar();
+  };
+  $('#cpronto').onclick = () => {
+    const n = $('#cnome').value.trim();
+    if (!n) { $('#cmsg').textContent = 'dá um nome pro seu personagem'; return; }
+    state.nome = n; state.visual = { ...v }; state.avatar = v.estilo;
+    salvar(); close(); render(); N.garantirPerfil(state.nome);
+    if (aoTerminar) aoTerminar();
+  };
+  atualizar();
+}
+// quem ja jogava antes do criador escolhe uma vez
+function exigirVisual() { if (state.setupDone && !state.visual && !visita) abrirCriador({ obrigatorio: true }); }
+
 // ---------- conta obrigatoria pra quem ja joga ----------
 // A conta virou obrigatoria na instalacao em 24/09, mas quem instalou antes (ou sem
 // internet) nunca foi perguntado -- e o progresso dessas pessoas so existia no celular.
 // Agora todo mundo que abre o app COM internet precisa estar numa conta com e-mail de
 // verdade. Sem internet joga normal e a cobranca vem na proxima vez.
-async function exigirConta() {
-  if (!state.setupDone || visita) return;                  // instalando: o passo 3 cuida
-  if (!(await N.disponivel())) return;
+async function exigirConta(depois = null) {
+  const seguir = () => { if (depois) depois(); };
+  if (!state.setupDone || visita) return seguir();         // instalando: o passo 3 cuida
+  if (!(await N.disponivel())) return seguir();
   const quem = await N.quemSou();
-  if (quem && !N.emailFalso(quem)) return;                  // conta com e-mail de verdade
+  if (quem && !N.emailFalso(quem)) return seguir();         // conta com e-mail de verdade
   const antiga = !!quem, dias = N.tamanho(state);
   open(`<h2>${antiga ? '📧 Falta o seu e-mail' : '☁️ Crie sua conta'}</h2>
     <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">${antiga
@@ -474,11 +527,11 @@ async function exigirConta() {
     msg(nova ? 'criando...' : 'entrando...'); await deixarAntiga();
     const r = await (nova ? N.criarConta(e, p) : N.entrar(e, p));
     if (r.erro) { msg(r.erro); if (/conex|servidor|rede|fetch|network/i.test(r.erro)) $('#depois').style.display = 'block'; return; }
-    close(); await sincronizar(nova); render();
+    close(); await sincronizar(nova); render(); seguir();
   };
   $('#criar').onclick = () => tentar('criar', true);
   $('#entrar').onclick = () => tentar('entrar', false);
-  $('#depois').onclick = () => { close(); toast('Sem conexão agora. A conta vai ser pedida de novo quando tiver internet.', 4500); };
+  $('#depois').onclick = () => { close(); toast('Sem conexão agora. A conta vai ser pedida de novo quando tiver internet.', 4500); seguir(); };
 }
 
 // ---------- som ----------
@@ -493,10 +546,10 @@ iconeSom();
 if (S.applyShield(state)) { salvar(); toast('🛡️ Um escudo salvou o dia de ontem.'); }
 render();
 // Se o aparelho ja esta logado, confere a nuvem assim que abrir.
-N.sessao().then(async s => { if (s) await sincronizar(false); exigirConta(); });
+N.sessao().then(async s => { if (s) await sincronizar(false); exigirConta(exigirVisual); });
 { const c = new URLSearchParams(location.search).get('amigo');
   if (c) { guardarConvite(c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)); history.replaceState(null, '', location.pathname); } }
-if (!state.setupDone) setup(1);
+if (!state.setupDone) abrirCriador({ obrigatorio: true, aoTerminar: () => setup(1) });   // primeira entrada: personagem, depois habitos
 else if (lerConvite()) amigos();
 if (new Date().getDay() === 0) setTimeout(() => takeSnapshot(false), 4000);
 setInterval(render, 60000);
