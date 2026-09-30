@@ -1,5 +1,6 @@
 import { createScene, QUALIDADE } from './scene.js';
 import { AVATARES } from './chars.js';
+import * as SOM from './som.js';
 import * as S from './state.js';
 import * as N from './nuvem.js';
 
@@ -62,10 +63,10 @@ function render() {
     state.obrasVistas = state.obrasVistas || [];
     for (const id of obras.feitas) if (!state.obrasVistas.includes(id)) {
       state.obrasVistas.push(id);
-      if (!primeira) { const o = S.obraDe(id); toast(`🔨 ${state.nome} terminou: ${o.nome}. ${o.desc}`, 5200, 'obra:' + id); }
+      if (!primeira) { const o = S.obraDe(id); SOM.tocar('obra'); toast(`🔨 ${state.nome} terminou: ${o.nome}. ${o.desc}`, 5200, 'obra:' + id); }
     }
   }
-  if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000, 'marco:' + m.dias); }
+  if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); SOM.tocar('marco'); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000, 'marco:' + m.dias); }
   salvar();
 }
 // Numeros de uma vitrine -> o que a cena desenha. Serve pra minha ilha e pra de um
@@ -172,6 +173,7 @@ function clickHabit(id) {
     const doMarco = S.marcosAlcancados(state).filter(m => !marcosAntes.includes(m.dias)).reduce((t, m) => t + m.bonus, 0);
     const doDia = after - before - doMarco;
     const mult = S.multiplierAt(state, iso), vezes = mult > 1 ? ` (sequência ×${String(mult).replace('.', ',')})` : '';
+    SOM.tocar(S.isPerfect(state, iso) ? 'dia-perfeito' : 'moeda');
     if (S.isPerfect(state, iso)) toast(`✨ Dia perfeito! +${doDia} moedas${vezes}. A fogueira acende hoje à noite.`, 3000, 'moeda');
     else toast(`+${doDia} moeda${doDia > 1 ? 's' : ''}${vezes}`, 2200, 'moeda');
   }
@@ -355,6 +357,7 @@ function setup(passo = 1) {
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
       <div class="t" style="margin:10px 0 6px">Quem é você na ilha</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">${AVATARES.map(a => `<button class="ghost" data-avatar="${a.skin}" style="padding:8px 4px;${draft.avatar === a.skin ? 'background:var(--ok);color:#053;font-weight:700' : ''}">${a.ele ? '👨' : '👩'} ${a.nome}</button>`).join('')}</div>
+      ${state.setupDone ? `<div class="row"><div><div class="t">Sons</div><div class="d">trilha calma e sons da ilha (mar, pássaros, grilos, fogueira)</div></div><div style="display:flex;gap:10px;white-space:nowrap"><label><input type="checkbox" id="sommus" ${SOM.preferencias().musica ? 'checked' : ''}> música</label><label><input type="checkbox" id="somnat" ${SOM.preferencias().natureza ? 'checked' : ''}> natureza</label></div></div>` : ''}
       ${state.setupDone ? `<div class="row"><div><div class="t">Gráficos</div><div class="d">leve: menos mata e sem brilho noturno — pra celular mais simples</div></div><select class="price" style="width:auto" id="qual"><option value="alta" ${QUALIDADE !== 'leve' ? 'selected' : ''}>alta</option><option value="leve" ${QUALIDADE === 'leve' ? 'selected' : ''}>leve</option></select></div>` : ''}
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
       <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
@@ -369,6 +372,7 @@ function setup(passo = 1) {
     $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
     sheet.querySelectorAll('[data-avatar]').forEach(b => b.onclick = () => { draft.nome = $('#nome').value.trim() || draft.nome; draft.avatar = b.dataset.avatar; setup(1); });
     // qualidade e deste aparelho (localStorage), nao da conta: um celular fraco nao rebaixa o PC
+    if ($('#sommus')) { $('#sommus').onchange = e => { SOM.configurar({ musica: e.target.checked }); iconeSom(); }; $('#somnat').onchange = e => { SOM.configurar({ natureza: e.target.checked }); iconeSom(); }; }
     if ($('#qual')) $('#qual').onchange = e => { try { localStorage.setItem('ilha.qualidade', e.target.value); } catch {} if (confirm('Recarregar agora pra aplicar os gráficos?')) location.reload(); };
     sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
     $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); };
@@ -438,6 +442,14 @@ function setup(passo = 1) {
 }
 
 document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, amigos, config: () => setup(1) })[b.dataset.m]());
+
+// ---------- som ----------
+// Celular so deixa tocar audio depois de um toque: o som comeca no primeiro toque na tela.
+function iconeSom() { $('#btsom').textContent = SOM.ligado() ? '🔊' : '🔇'; }
+$('#btsom').onclick = () => { const liga = !SOM.ligado(); SOM.configurar({ musica: liga, natureza: liga }); if (liga) SOM.iniciar(); iconeSom(); };
+document.addEventListener('pointerdown', () => { if (SOM.ligado()) SOM.iniciar(); }, { once: true });
+setInterval(() => SOM.atualizar(scene.ouvir()), 400);
+iconeSom();
 
 // ---------- inicio ----------
 if (S.applyShield(state)) { salvar(); toast('🛡️ Um escudo salvou o dia de ontem.'); }

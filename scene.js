@@ -1263,6 +1263,9 @@ export function createScene(canvas) {
   }
 
   const BRANCO = new THREE.Color(0xffffff);
+  // o que o som precisa saber (som.js pergunta algumas vezes por segundo)
+  const somInfo = { hora: 12, sol: 1, fogueira: false, nevoa: false, distCachoeira: 999, distMar: 50 };
+  const CACHOEIRA_POS = new THREE.Vector3(RIO[1][0], nivelPoco() + 10, RIO[1][1] + 2.5);
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame); resize();
@@ -1423,6 +1426,10 @@ export function createScene(canvas) {
     controls.update();
     // quanto de noite esta (0 de dia, 1 no escuro): comanda brilho, janelas e vagalumes
     const escuro = THREE.MathUtils.clamp(.45 - sunUp * 2.2, 0, 1);
+    somInfo.hora = hour; somInfo.sol = sunUp; somInfo.nevoa = !!foggy;
+    somInfo.fogueira = !!(slots.obra_fogueira && view && view.perfectToday && sunUp < .15);
+    somInfo.distCachoeira = camera.position.distanceTo(CACHOEIRA_POS);
+    somInfo.distMar = Math.max(0, costaEm(Math.atan2(alvo.z, alvo.x), R_ILHA, 0) - Math.hypot(alvo.x, alvo.z));
     JANELA.emissiveIntensity = .04 + escuro * 1.7;
     vagalumes.atualizar(t, escuro);
     if (composer) { bloom.strength = .08 + escuro * .9; composer.render(); } else renderer.render(scene, camera);
@@ -1436,5 +1443,5 @@ export function createScene(canvas) {
     c.getContext('2d').drawImage(canvas, 0, 0, w, h);
     return c.toDataURL('image/jpeg', .72);
   }
-  return { apply, pulse, snapshot };
+  return { apply, pulse, snapshot, ouvir: () => somInfo };
 }
