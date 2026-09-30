@@ -142,6 +142,7 @@ async function rpc(nome, args) {
 }
 export const garantirPerfil = nome => rpc('garantir_perfil', { nome_personagem: nome || 'Bob' });
 export const pedirAmizade = codigo => rpc('pedir_amizade', { codigo_amigo: String(codigo || '') });
+export const pedirAmizadeEmail = email => rpc('pedir_amizade_email', { email_amigo: limpaEmail(email) });
 export const responderAmizade = (amigo, aceitar) => rpc('responder_amizade', { amigo, aceitar });
 export const desfazerAmizade = amigo => rpc('desfazer_amizade', { amigo });
 export const meusAmigos = () => rpc('meus_amigos');

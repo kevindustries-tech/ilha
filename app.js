@@ -105,7 +105,7 @@ function mostraVisita() {
 // ---------- amigos ----------
 const RESPOSTA_PEDIDO = {
   pedido: 'Pedido enviado. Aparece aqui quando aceitarem.', aceita: 'Vocês agora são amigos! 🏝️',
-  ja_amigos: 'Vocês já são amigos.', nao_existe: 'Não achei ninguém com esse código.', eu_mesmo: 'Esse é o seu próprio código. 🙂',
+  ja_amigos: 'Vocês já são amigos.', nao_existe: 'Não achei ninguém com esse código.', nao_existe_email: 'Ninguém joga com esse e-mail ainda. Manda o convite pra pessoa!', eu_mesmo: 'Esse é o seu próprio código. 🙂',
 };
 const lerConvite = () => { try { return localStorage.getItem('ilha.convite') || ''; } catch { return ''; } };
 const guardarConvite = c => { try { c ? localStorage.setItem('ilha.convite', c) : localStorage.removeItem('ilha.convite'); } catch {} };
@@ -126,30 +126,33 @@ async function amigos() {
     if (!v) return `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">ainda não abriu o app desde que vocês viraram amigos</div></div><button class="ghost" data-tirar="${i}">✕</button></div>`;
     const dia = v.dia !== hoje ? 'não abriu hoje' : v.perfeitoHoje ? '✅ fechou o dia' : `${v.feitosHoje}/${v.devidosHoje} hoje`;
     return `<div class="row"><div><div class="t">${esc(v.nome || a.nome)} <span class="d">🔥 ${v.sequencia} · ✨ ${v.perfeitos}</span></div>
+      <div class="d">${esc(a.email || '')}</div>
       <div class="d">${dia}${v.obraAtual ? ` · 🔨 ${esc(v.obraAtual.nome)}` : ' · ilha completa'}</div></div>
       <div style="display:flex;gap:6px"><button class="buy" data-vis="${i}">visitar</button><button class="ghost" data-tirar="${i}">✕</button></div></div>`;
   };
   open(head('👥 Amigos') +
-    `<div class="row"><div><div class="d">Seu código</div><div class="t" style="font-size:22px;letter-spacing:.12em">${esc(codigo)}</div></div><button class="buy" id="convidar">convidar</button></div>
-     <div class="row"><input class="price" style="flex:1;text-transform:uppercase;letter-spacing:.1em" id="cod" maxlength="8" autocapitalize="characters" placeholder="código do amigo" value="${esc(convite)}"><button class="buy" id="add">adicionar</button></div>
+    `<div class="row"><div><div class="d">Seus amigos te acham pelo seu e-mail</div><div class="t" style="font-size:14px">${esc(await N.quemSou() || '')}</div></div><button class="buy" id="convidar">convidar</button></div>
+     <div class="row"><input class="price" style="flex:1" id="cod" type="email" inputmode="email" autocapitalize="none" autocomplete="off" placeholder="e-mail do amigo" value="${esc(convite)}"><button class="buy" id="add">adicionar</button></div>
      <div id="msg" class="d" style="font-size:12px;min-height:16px;margin:4px 0"></div>
-     ${recebidos.length ? `<div class="t" style="margin:10px 0 4px">Pedidos pra você</div>` + recebidos.map(a => `<div class="row"><div class="t">${esc(a.nome)}</div><div style="display:flex;gap:6px"><button class="buy" data-sim="${todos.indexOf(a)}">aceitar</button><button class="ghost" data-nao="${todos.indexOf(a)}">recusar</button></div></div>`).join('') : ''}
+     ${recebidos.length ? `<div class="t" style="margin:10px 0 4px">Pedidos pra você</div>` + recebidos.map(a => `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">${esc(a.email || '')}</div></div><div style="display:flex;gap:6px"><button class="buy" data-sim="${todos.indexOf(a)}">aceitar</button><button class="ghost" data-nao="${todos.indexOf(a)}">recusar</button></div></div>`).join('') : ''}
      <div class="t" style="margin:10px 0 4px">Amigos</div>
      ${aceitos.map(linha).join('') || '<div class="d">Ninguém ainda. Manda o seu código pra alguém — quem fecha o dia junto desiste menos.</div>'}
-     ${enviados.length ? `<div class="t" style="margin:10px 0 4px">Esperando resposta</div>` + enviados.map(a => `<div class="row"><div class="t">${esc(a.nome)}</div><button class="ghost" data-tirar="${todos.indexOf(a)}">cancelar</button></div>`).join('') : ''}
+     ${enviados.length ? `<div class="t" style="margin:10px 0 4px">Esperando resposta</div>` + enviados.map(a => `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">${esc(a.email || '')}</div></div><button class="ghost" data-tirar="${todos.indexOf(a)}">cancelar</button></div>`).join('') : ''}
      <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px">Amigos veem sua ilha, sua sequência e se você fechou o dia — nunca os nomes dos seus hábitos e recompensas. (Eles vão pro backup da sua conta, que só o dono do app acessa.)</div>`);
   const msg = (m, ok) => { const el = $('#msg'); el.textContent = m; el.style.color = ok ? 'var(--ok)' : '#ff8a80'; };
   $('#add').onclick = async () => {
-    const c = $('#cod').value.trim(); if (c.length < 6) return msg('o código tem 6 letras');
-    msg('procurando...', true); const r = await N.pedirAmizade(c);
+    // e-mail e o jeito principal; codigo de 6 letras (link de convite antigo) ainda funciona
+    const c = $('#cod').value.trim(), porEmail = c.includes('@');
+    if (porEmail ? !N.emailValido(c) : c.replace(/[^a-z0-9]/gi, '').length !== 6) return msg('escreve o e-mail do seu amigo');
+    msg('procurando...', true); const r = await (porEmail ? N.pedirAmizadeEmail(c) : N.pedirAmizade(c));
     if (r.erro) return msg(r.erro);
     guardarConvite('');
     if (r.data === 'pedido' || r.data === 'aceita') { toast(RESPOSTA_PEDIDO[r.data], 3500); return amigos(); }
-    msg(RESPOSTA_PEDIDO[r.data] || r.data, r.data === 'ja_amigos');
+    msg(RESPOSTA_PEDIDO[r.data === 'nao_existe' && porEmail ? 'nao_existe_email' : r.data] || r.data, r.data === 'ja_amigos');
   };
   $('#convidar').onclick = async () => {
     const link = location.origin + location.pathname + '?amigo=' + codigo;
-    const texto = `Me adiciona na Ilha! Meu código: ${codigo}`;
+    const texto = `Me adiciona na Ilha! Meu e-mail no jogo: ${await N.quemSou() || ''}`;
     try { if (navigator.share) { await navigator.share({ title: 'Ilha', text: texto, url: link }); return; } } catch { return; }
     try { await navigator.clipboard.writeText(texto + '\n' + link); toast('Convite copiado. Cola no WhatsApp. 📋', 3000); } catch { msg('Manda esse código: ' + codigo, true); }
   };

@@ -119,6 +119,28 @@ begin
   return 'pedido';
 end $$;
 
+-- Manda pedido pelo E-MAIL do amigo (jeito principal; o codigo continua valendo no link
+-- de convite). Mesmas respostas do pedir_amizade. Diz quando o e-mail nao tem conta: num
+-- jogo entre familia e amigos a mensagem clara vale mais que esconder quem joga.
+create or replace function public.pedir_amizade_email(email_amigo text)
+returns text language plpgsql security definer set search_path = public as $$
+declare alvo uuid;
+begin
+  if auth.uid() is null then raise exception 'sem sessao'; end if;
+  select id into alvo from auth.users where lower(email) = lower(trim(email_amigo)) limit 1;
+  if alvo is null then return 'nao_existe'; end if;
+  if alvo = auth.uid() then return 'eu_mesmo'; end if;
+  if exists (select 1 from amizades where aceita and ((de = auth.uid() and para = alvo) or (de = alvo and para = auth.uid()))) then
+    return 'ja_amigos';
+  end if;
+  if exists (select 1 from amizades where de = alvo and para = auth.uid()) then
+    update amizades set aceita = true where de = alvo and para = auth.uid();
+    return 'aceita';
+  end if;
+  insert into amizades (de, para) values (auth.uid(), alvo) on conflict do nothing;
+  return 'pedido';
+end $$;
+
 -- Quem recebeu o pedido aceita ou recusa.
 create or replace function public.responder_amizade(amigo uuid, aceitar boolean)
 returns void language plpgsql security definer set search_path = public as $$
@@ -141,15 +163,19 @@ end $$;
 
 -- A lista da aba Amigos. A vitrine so vem quando a amizade foi aceita.
 -- ESTA E A UNICA PORTA pela qual um usuario enxerga dado de outro.
+-- (mudou o formato da resposta: agora vem o e-mail -- o nome do personagem de todo mundo
+-- pode ser "Bob". Trocar o retorno de uma funcao exige apagar a antiga antes.)
+drop function if exists public.meus_amigos();
 create or replace function public.meus_amigos()
-returns table (amigo uuid, nome text, aceita boolean, pedi_eu boolean, vitrine jsonb, atualizado_em timestamptz)
+returns table (amigo uuid, nome text, email text, aceita boolean, pedi_eu boolean, vitrine jsonb, atualizado_em timestamptz)
 language sql stable security definer set search_path = public as $$
-  select o.id, p.nome, a.aceita, a.de = auth.uid(),
+  select o.id, coalesce(p.nome, 'Jogador'), u.email::text, a.aceita, a.de = auth.uid(),
          case when a.aceita then v.dados end,
          case when a.aceita then v.atualizado_em end
   from amizades a
   cross join lateral (select case when a.de = auth.uid() then a.para else a.de end as id) o
-  join perfis p on p.user_id = o.id
+  join auth.users u on u.id = o.id
+  left join perfis p on p.user_id = o.id           -- quem ainda nao abriu a aba Amigos nao tem perfil
   left join vitrines v on v.user_id = o.id
   where auth.uid() in (a.de, a.para)
 $$;
@@ -157,11 +183,13 @@ $$;
 -- So quem esta logado chama as funcoes.
 revoke all on function public.garantir_perfil(text)            from public, anon;
 revoke all on function public.pedir_amizade(text)              from public, anon;
+revoke all on function public.pedir_amizade_email(text)        from public, anon;
 revoke all on function public.responder_amizade(uuid, boolean) from public, anon;
 revoke all on function public.desfazer_amizade(uuid)           from public, anon;
 revoke all on function public.meus_amigos()                    from public, anon;
 grant execute on function public.garantir_perfil(text)            to authenticated;
 grant execute on function public.pedir_amizade(text)              to authenticated;
+grant execute on function public.pedir_amizade_email(text)        to authenticated;
 grant execute on function public.responder_amizade(uuid, boolean) to authenticated;
 grant execute on function public.desfazer_amizade(uuid)           to authenticated;
 grant execute on function public.meus_amigos()                    to authenticated;
