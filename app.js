@@ -288,14 +288,14 @@ async function conta() {
       <button class="ghost" id="sair" style="margin-top:8px;width:100%">sair da conta neste aparelho</button>`);
     $('#agora').onclick = async () => { const r = await N.subir(state); toast(r.ok ? 'Progresso salvo na nuvem. ☁️' : 'Não consegui salvar: ' + r.erro, 3500); };
     $('#sair').onclick = async () => {
-      if (!confirm('Sair da conta? O progresso continua neste aparelho.')) return;
-      await N.sair(); close(); toast('Você saiu. O progresso continua aqui no aparelho.', 3500);
+      if (!confirm('Sair da conta? Pra continuar jogando neste aparelho vai ser preciso entrar numa conta de novo.')) return;
+      await N.sair(); close(); exigirConta();
     };
     return;
   }
   open(head('☁️ Conta') +
     `<div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">Crie uma conta pra não perder a ilha se trocar de celular ou apagar o app. O jogo continua funcionando offline — a nuvem é só a cópia de segurança.</div>
-     <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="us" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="voce@exemplo.com"></div>
+     <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="us" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="seu e-mail"></div>
      <div class="row"><div class="t">Senha</div><input class="price" style="width:170px" id="pw" type="password" autocomplete="current-password" placeholder="mínimo 6"></div>
      <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
      <button class="buy" id="entrar" style="margin-top:10px;width:100%">entrar</button>
@@ -412,7 +412,7 @@ function setup(passo = 1) {
     const pronto = () => { state.setupDone = true; salvar(); close(); render(); };
     open(`<h2>☁️ Sua conta <span class="d" style="font-size:12px">passo 3 de 3</span></h2>
       <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">A ilha vive neste aparelho. A conta é a cópia de segurança: sem ela, trocou de celular ou limpou o navegador e o progresso foi embora. O jogo continua funcionando offline.</div>
-      <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="em" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="voce@exemplo.com"></div>
+      <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="em" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="seu e-mail"></div>
       <div class="row"><div class="t">Senha</div><input class="price" style="width:170px" id="pw" type="password" autocomplete="new-password" placeholder="mínimo 6"></div>
       <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
       <button class="buy" id="criar" style="width:100%">criar conta e começar 🏝️</button>
@@ -421,7 +421,7 @@ function setup(passo = 1) {
       <div style="display:flex;gap:8px;margin-top:10px"><button class="ghost" id="volta">← recompensas</button><button class="ghost" id="semrede" style="flex:1;display:none">começar sem conta</button></div>`, false);
     const msg = m => $('#msg').textContent = m;
     const pega = () => ({ e: $('#em').value, p: $('#pw').value });
-    const valida = ({ e, p }) => !N.emailValido(e) ? 'escreve um e-mail válido' : p.length < 6 ? 'a senha precisa de pelo menos 6 caracteres' : '';
+    const valida = ({ e, p }) => !N.emailValido(e) ? (N.ehExemplo(e) ? 'esse era só o exemplo — escreve o seu e-mail' : 'escreve um e-mail válido') : p.length < 6 ? 'a senha precisa de pelo menos 6 caracteres' : '';
     const fim = async (r, contaNova) => {
       if (r.erro) {
         msg(r.erro);
@@ -443,6 +443,44 @@ function setup(passo = 1) {
 
 document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, amigos, config: () => setup(1) })[b.dataset.m]());
 
+// ---------- conta obrigatoria pra quem ja joga ----------
+// A conta virou obrigatoria na instalacao em 24/09, mas quem instalou antes (ou sem
+// internet) nunca foi perguntado -- e o progresso dessas pessoas so existia no celular.
+// Agora todo mundo que abre o app COM internet precisa estar numa conta com e-mail de
+// verdade. Sem internet joga normal e a cobranca vem na proxima vez.
+async function exigirConta() {
+  if (!state.setupDone || visita) return;                  // instalando: o passo 3 cuida
+  if (!(await N.disponivel())) return;
+  const quem = await N.quemSou();
+  if (quem && !N.emailFalso(quem)) return;                  // conta com e-mail de verdade
+  const antiga = !!quem, dias = N.tamanho(state);
+  open(`<h2>${antiga ? '📧 Falta o seu e-mail' : '☁️ Crie sua conta'}</h2>
+    <div class="d" style="font-size:13px;color:var(--muted);margin-bottom:10px">${antiga
+      ? `Sua conta foi criada sem e-mail (<b>${esc(quem)}</b>) e, sem e-mail, não tem como recuperar a senha. Crie a conta com o seu e-mail de verdade — sua ilha vem junto.`
+      : 'Agora todo mundo joga com conta: é ela que guarda a sua ilha se o celular quebrar, for trocado ou o app for apagado.'}${dias ? ` Seus <b>${dias} ${dias === 1 ? 'dia' : 'dias'}</b> de progresso vão junto.` : ''}</div>
+    <div class="row"><div class="t">E-mail</div><input class="price" style="width:170px" id="em" type="email" inputmode="email" autocapitalize="none" autocomplete="email" placeholder="seu e-mail"></div>
+    <div class="row"><div class="t">Senha</div><input class="price" style="width:170px" id="pw" type="password" autocomplete="new-password" placeholder="mínimo 6"></div>
+    <div id="msg" class="d" style="font-size:12px;color:#ff8a80;min-height:16px;margin-top:6px"></div>
+    <button class="buy" id="criar" style="width:100%">criar conta</button>
+    <button class="ghost" id="entrar" style="margin-top:8px;width:100%">já tenho conta com e-mail</button>
+    <button class="ghost" id="depois" style="margin-top:8px;width:100%;display:none">agora não (sem conexão)</button>
+    <div class="d" style="font-size:12px;color:var(--muted);margin-top:10px">⚠️ <b>Anote a senha.</b> A recuperação por e-mail ainda não está ligada.</div>`, false);
+  const msg = m => $('#msg').textContent = m;
+  const valida = (e, p) => !N.emailValido(e) ? (N.ehExemplo(e) ? 'esse era só o exemplo — escreve o seu e-mail' : 'escreve um e-mail válido') : p.length < 6 ? 'a senha precisa de pelo menos 6 caracteres' : '';
+  // conta antiga: antes de sair dela, garante que este aparelho tem o save mais completo
+  const deixarAntiga = async () => { if (antiga && N.emailFalso(await N.quemSou())) { await sincronizar(false); await N.sair(); } };
+  const tentar = async (acao, nova) => {
+    const e = $('#em').value, p = $('#pw').value, erro = valida(e, p); if (erro) return msg(erro);
+    msg(nova ? 'criando...' : 'entrando...'); await deixarAntiga();
+    const r = await (nova ? N.criarConta(e, p) : N.entrar(e, p));
+    if (r.erro) { msg(r.erro); if (/conex|servidor|rede|fetch|network/i.test(r.erro)) $('#depois').style.display = 'block'; return; }
+    close(); await sincronizar(nova); render();
+  };
+  $('#criar').onclick = () => tentar('criar', true);
+  $('#entrar').onclick = () => tentar('entrar', false);
+  $('#depois').onclick = () => { close(); toast('Sem conexão agora. A conta vai ser pedida de novo quando tiver internet.', 4500); };
+}
+
 // ---------- som ----------
 // Celular so deixa tocar audio depois de um toque: o som comeca no primeiro toque na tela.
 function iconeSom() { $('#btsom').textContent = SOM.ligado() ? '🔊' : '🔇'; }
@@ -455,7 +493,7 @@ iconeSom();
 if (S.applyShield(state)) { salvar(); toast('🛡️ Um escudo salvou o dia de ontem.'); }
 render();
 // Se o aparelho ja esta logado, confere a nuvem assim que abrir.
-N.sessao().then(s => { if (s) sincronizar(false); });
+N.sessao().then(async s => { if (s) await sincronizar(false); exigirConta(); });
 { const c = new URLSearchParams(location.search).get('amigo');
   if (c) { guardarConvite(c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)); history.replaceState(null, '', location.pathname); } }
 if (!state.setupDone) setup(1);

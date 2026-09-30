@@ -32,7 +32,15 @@ async function cliente() {
 }
 
 const limpaEmail = e => String(e || '').trim().toLowerCase();
-export const emailValido = e => /^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$/.test(limpaEmail(e));
+export const emailValido = e => /^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$/.test(limpaEmail(e)) && !emailFalso(e);
+// alguem criou conta com o texto de exemplo do campo (voce@exemplo.com): nao deixa mais
+export const ehExemplo = e => /@(exemplo|example)\.(com|org|net)(\.br)?$/i.test(limpaEmail(e));
+// login antigo montava usuario@ilha.app: dominio que nao existe, caixa que ninguem le
+// (o de exemplo tambem conta como falso: quem ja entrou com ele precisa trocar)
+export const emailFalso = e => /@ilha\.app$/i.test(String(e || '')) || ehExemplo(e);
+// da pra falar com o servidor agora? (o supabase-js fica no cache offline, entao carregar
+// a biblioteca nao prova nada: vale o navigator.onLine)
+export async function disponivel() { return navigator.onLine !== false && !!(await cliente()); }
 
 export async function sessao() {
   const sb = await cliente(); if (!sb) return null;
