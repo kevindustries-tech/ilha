@@ -947,7 +947,13 @@ export function createScene(canvas) {
     put('postes', temEnergia ? buildPostes(night) : null, 0, 0, 0);
     // (a antiga lista CIDADE virou parte das OBRAS)
     unlockState = v.unlocked;
-    for (const k in unlock) { const on = !!v.unlocked[k]; unlock[k].traverse(o => { if (o.isMesh) { o.material.transparent = !on; o.material.opacity = on ? 1 : .1; o.material.depthWrite = on; o.castShadow = on; o.receiveShadow = on; if (!on) { o.material.color.set(0xdfefff); o.material.emissive.set(0); } } }); unlock[k].visible = on || k !== 'montanha' || v.unlocked.navio; }
+    // silhueta = cor clara e transparente. A cor original fica guardada: visitando um amigo
+    // menos adiantado, o farol vira silhueta e precisa voltar colorido na minha ilha.
+    for (const k in unlock) { const on = !!v.unlocked[k]; unlock[k].traverse(o => { if (o.isMesh) {
+      if (!o.userData.cor) o.userData.cor = { c: o.material.color.getHex(), e: o.material.emissive.getHex() };
+      o.material.transparent = !on; o.material.opacity = on ? 1 : .1; o.material.depthWrite = on; o.castShadow = on; o.receiveShadow = on;
+      if (on) { o.material.color.setHex(o.userData.cor.c); o.material.emissive.setHex(o.userData.cor.e); } else { o.material.color.set(0xdfefff); o.material.emissive.set(0); } } });
+      unlock[k].visible = on || k !== 'montanha' || v.unlocked.navio; }
     birds.visible = !!v.unlocked.birds && v.weather.clear;
   }
 

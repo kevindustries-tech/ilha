@@ -280,6 +280,23 @@ export function weather(s) {
   const started = Object.keys(s.days).length > 0 && y1 >= s.start;
   return { clear: ps >= 7, fog: started && failed && ps === 0 };
 }
+// Vitrine: o que um amigo enxerga (ver supabase/amigos.sql). So numeros e o estado
+// da ilha -- nome de habito e de recompensa NAO entram, nem o id deles. E tambem o
+// que a cena desenha, pra minha ilha e pra de quem eu estiver visitando.
+export function vitrine(s, iso = today()) {
+  const tot = totals(s), ob = obrasEm(tot.checks), d = s.days[iso] || {}, a = ob.atual;
+  const ativos = s.habitos.filter(h => !(h.desde && iso < h.desde));
+  return {
+    v: 1, nome: s.nome || 'Bob', avatar: s.avatar || 'bob', dia: iso,
+    perfeitoHoje: isPerfect(s, iso),
+    feitosHoje: ativos.filter(h => checked(s, iso, h.id)).length,
+    devidosHoje: ativos.filter(h => isDue(h, iso)).length,
+    folgaHoje: !!(d.folga && Object.keys(d.folga).length),
+    sequencia: perfectStreak(s), perfeitos: tot.perfect, materiais: tot.checks,
+    obras: ob.feitas, obraAtual: a ? { id: a.id, nome: a.nome, tem: a.tem, precisa: a.precisa, prog: a.prog } : null,
+    clima: weather(s),
+  };
+}
 export function descreveFreq(h) {
   if (h.tipo === 'diario') return 'todo dia';
   if (h.tipo === 'semana') return `${h.vezes}× por semana`;

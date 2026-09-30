@@ -10,7 +10,7 @@ const HORA = new URLSearchParams(location.search).get('hora');
 
 // Salvar sempre passa por aqui: grava no aparelho na hora e agenda a copia na
 // nuvem. O jogo nunca espera a rede.
-function salvar() { S.save(state); N.agendarSubida(state); }
+function salvar() { S.save(state); N.agendarSubida(state, null, () => S.vitrine(state)); }
 
 function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(t._h); t._h = setTimeout(() => t.style.opacity = 0, ms); }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -33,22 +33,13 @@ function render() {
   }).join('');
   grid.querySelectorAll('.hab').forEach(el => el.onclick = () => clickHabit(el.dataset.h));
   // Recursos: cada habito cumprido = 1 material. Nenhum habito constroi uma obra especifica.
-  const done = {}; for (const h of state.habitos) done[h.id] = SIM !== null || S.dayDone(state, iso, h.id);
-  const folgaAlguma = state.habitos.some(h => S.folgaHoje(state, h.id));
+  // A cena desenha a partir de uma vitrine (so numeros): a minha, ou a do amigo visitado.
   const obras = S.obrasEm(tot.checks);
-  const feitosHoje = state.habitos.filter(h => S.checked(state, iso, h.id)).length;
-  // O deposito mostra o que ja foi juntado pra obra em andamento (metade tora, metade pedra)
-  const tem = obras.atual ? obras.atual.tem : 0;
-  const dep = { toras: Math.ceil(tem / 2), pedras: Math.floor(tem / 2), madeiraHoje: feitosHoje > 0, pedraHoje: feitosHoje > 1 };
-  scene.apply({
-    hour: HORA !== null ? +HORA : new Date().getHours() + new Date().getMinutes() / 60,
-    obras: obras.feitas, obraAtual: obras.atual, deposito: dep, done,
-    perfectToday: SIM !== null || S.isPerfect(state, iso), descanso: folgaAlguma,
-    fit: S.level(tot.checks).lvl + tot.checks / 14,
-    unlocked: { birds: tot.perfect >= 7, farol: tot.perfect >= 30, ponte: tot.perfect >= 60, vizinha: tot.perfect >= 60, navio: tot.perfect >= 100, montanha: tot.perfect >= 200 },
-    weather: SIM !== null ? { clear: +SIM >= 7, fog: false } : S.weather(state),
-    habitantes: S.habitantes(tot.perfect), tecnologias: S.tecnologias(tot.checks), ilhasExtras: S.ilhasExtras(tot.perfect),
-  });
+  const vt = S.vitrine(state, iso);
+  if (SIM !== null) Object.assign(vt, { perfeitos: tot.perfect, materiais: tot.checks, sequencia: ps, obras: obras.feitas, obraAtual: obras.atual,
+    perfeitoHoje: true, feitosHoje: state.habitos.length, folgaHoje: false, clima: { clear: +SIM >= 7, fog: false } });
+  scene.apply(vistaDe(visita ? visita.vitrine : vt));
+  mostraVisita();
   if (SIM === null) {
     const primeira = !state.obrasVistas;
     state.obrasVistas = state.obrasVistas || [];
@@ -60,6 +51,99 @@ function render() {
   if (SIM === null) for (const m of S.MILESTONES.filter(m => tot.perfect >= m.dias)) if (!state.milestonesPaid.includes(m.dias)) { state.milestonesPaid.push(m.dias); toast(`🏆 ${m.nome}! +${m.bonus} moedas · desbloqueou: ${m.desbloqueia}`, 5000); }
   salvar();
 }
+// Numeros de uma vitrine -> o que a cena desenha. Serve pra minha ilha e pra de um
+// amigo: a cena nao sabe (nem precisa saber) de quem e a ilha.
+function vistaDe(vt) {
+  const hoje = vt.dia === S.today(), p = vt.perfeitos || 0, m = vt.materiais || 0;
+  const tem = vt.obraAtual ? vt.obraAtual.tem : 0, feitos = hoje ? vt.feitosHoje : 0;
+  return {
+    hour: HORA !== null ? +HORA : new Date().getHours() + new Date().getMinutes() / 60,
+    obras: vt.obras || [], obraAtual: vt.obraAtual,
+    // o deposito mostra o que ja foi juntado pra obra em andamento (metade tora, metade pedra)
+    deposito: { toras: Math.ceil(tem / 2), pedras: Math.floor(tem / 2), madeiraHoje: feitos > 0, pedraHoje: feitos > 1 },
+    perfectToday: hoje && !!vt.perfeitoHoje, descanso: hoje && !!vt.folgaHoje,
+    fit: S.level(m).lvl + m / 14, avatar: vt.avatar || 'bob',
+    unlocked: { birds: p >= 7, farol: p >= 30, ponte: p >= 60, vizinha: p >= 60, navio: p >= 100, montanha: p >= 200 },
+    weather: vt.clima || { clear: false, fog: false },
+    habitantes: S.habitantes(p), tecnologias: S.tecnologias(m), ilhasExtras: S.ilhasExtras(p),
+  };
+}
+
+// ---------- visita a ilha de um amigo ----------
+let visita = null;   // { amigo, nome, vitrine } enquanto estou olhando a ilha de alguem
+function visitar(a) { visita = a; close(); render(); toast(`Visitando a ilha de ${a.vitrine.nome || a.nome}. Só dá pra olhar. 👀`, 3200); }
+function mostraVisita() {
+  const b = $('#visita'); b.style.display = visita ? 'flex' : 'none'; $('#habits').style.display = visita ? 'none' : '';
+  if (!visita) return;
+  const v = visita.vitrine, hoje = v.dia === S.today();
+  const dia = !hoje ? 'não abriu hoje' : v.perfeitoHoje ? '✅ fechou o dia' : `${v.feitosHoje}/${v.devidosHoje} hoje`;
+  b.innerHTML = `<div><div class="nm">🏝️ Ilha de ${esc(v.nome || visita.nome)}</div>
+    <div class="st">🔥 ${v.sequencia} ${v.sequencia === 1 ? 'dia' : 'dias'} · ✨ ${v.perfeitos} perfeitos · ${dia}${v.obraAtual ? ` · 🔨 ${esc(v.obraAtual.nome)} ${v.obraAtual.tem}/${v.obraAtual.precisa}` : ''}</div></div>
+    <button class="buy" id="voltar">voltar</button>`;
+  $('#voltar').onclick = () => { visita = null; render(); };
+}
+
+// ---------- amigos ----------
+const RESPOSTA_PEDIDO = {
+  pedido: 'Pedido enviado. Aparece aqui quando aceitarem.', aceita: 'Vocês agora são amigos! 🏝️',
+  ja_amigos: 'Vocês já são amigos.', nao_existe: 'Não achei ninguém com esse código.', eu_mesmo: 'Esse é o seu próprio código. 🙂',
+};
+const lerConvite = () => { try { return localStorage.getItem('ilha.convite') || ''; } catch { return ''; } };
+const guardarConvite = c => { try { c ? localStorage.setItem('ilha.convite', c) : localStorage.removeItem('ilha.convite'); } catch {} };
+async function amigos() {
+  if (!(await N.quemSou())) {
+    open(head('👥 Amigos') + `<div class="d" style="font-size:13px;color:var(--muted)">Pra ter amigos você precisa de uma conta — ela também guarda o backup da sua ilha.</div>
+      <button class="buy" id="irconta" style="margin-top:12px;width:100%">☁️ entrar ou criar conta</button>`);
+    $('#irconta').onclick = conta; return;
+  }
+  open(head('👥 Amigos') + '<div class="d">carregando...</div>');
+  const [perfil, lista] = await Promise.all([N.garantirPerfil(state.nome), N.meusAmigos()]);
+  if (perfil.erro || lista.erro) { open(head('👥 Amigos') + `<div class="d" style="color:#ff8a80">${esc(perfil.erro || lista.erro)}</div>`); return; }
+  const codigo = perfil.data, todos = lista.data || [], hoje = S.today(), convite = lerConvite();
+  const aceitos = todos.filter(a => a.aceita).sort((x, y) => ((y.vitrine || {}).sequencia || 0) - ((x.vitrine || {}).sequencia || 0));
+  const recebidos = todos.filter(a => !a.aceita && !a.pedi_eu), enviados = todos.filter(a => !a.aceita && a.pedi_eu);
+  const linha = a => {
+    const v = a.vitrine, i = todos.indexOf(a);
+    if (!v) return `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">ainda não abriu o app desde que vocês viraram amigos</div></div><button class="ghost" data-tirar="${i}">✕</button></div>`;
+    const dia = v.dia !== hoje ? 'não abriu hoje' : v.perfeitoHoje ? '✅ fechou o dia' : `${v.feitosHoje}/${v.devidosHoje} hoje`;
+    return `<div class="row"><div><div class="t">${esc(v.nome || a.nome)} <span class="d">🔥 ${v.sequencia} · ✨ ${v.perfeitos}</span></div>
+      <div class="d">${dia}${v.obraAtual ? ` · 🔨 ${esc(v.obraAtual.nome)}` : ' · ilha completa'}</div></div>
+      <div style="display:flex;gap:6px"><button class="buy" data-vis="${i}">visitar</button><button class="ghost" data-tirar="${i}">✕</button></div></div>`;
+  };
+  open(head('👥 Amigos') +
+    `<div class="row"><div><div class="d">Seu código</div><div class="t" style="font-size:22px;letter-spacing:.12em">${esc(codigo)}</div></div><button class="buy" id="convidar">convidar</button></div>
+     <div class="row"><input class="price" style="flex:1;text-transform:uppercase;letter-spacing:.1em" id="cod" maxlength="8" autocapitalize="characters" placeholder="código do amigo" value="${esc(convite)}"><button class="buy" id="add">adicionar</button></div>
+     <div id="msg" class="d" style="font-size:12px;min-height:16px;margin:4px 0"></div>
+     ${recebidos.length ? `<div class="t" style="margin:10px 0 4px">Pedidos pra você</div>` + recebidos.map(a => `<div class="row"><div class="t">${esc(a.nome)}</div><div style="display:flex;gap:6px"><button class="buy" data-sim="${todos.indexOf(a)}">aceitar</button><button class="ghost" data-nao="${todos.indexOf(a)}">recusar</button></div></div>`).join('') : ''}
+     <div class="t" style="margin:10px 0 4px">Amigos</div>
+     ${aceitos.map(linha).join('') || '<div class="d">Ninguém ainda. Manda o seu código pra alguém — quem fecha o dia junto desiste menos.</div>'}
+     ${enviados.length ? `<div class="t" style="margin:10px 0 4px">Esperando resposta</div>` + enviados.map(a => `<div class="row"><div class="t">${esc(a.nome)}</div><button class="ghost" data-tirar="${todos.indexOf(a)}">cancelar</button></div>`).join('') : ''}
+     <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px">Amigos veem sua ilha, sua sequência e se você fechou o dia. Os nomes dos seus hábitos e recompensas não saem do seu aparelho.</div>`);
+  const msg = (m, ok) => { const el = $('#msg'); el.textContent = m; el.style.color = ok ? 'var(--ok)' : '#ff8a80'; };
+  $('#add').onclick = async () => {
+    const c = $('#cod').value.trim(); if (c.length < 6) return msg('o código tem 6 letras');
+    msg('procurando...', true); const r = await N.pedirAmizade(c);
+    if (r.erro) return msg(r.erro);
+    guardarConvite('');
+    if (r.data === 'pedido' || r.data === 'aceita') { toast(RESPOSTA_PEDIDO[r.data], 3500); return amigos(); }
+    msg(RESPOSTA_PEDIDO[r.data] || r.data, r.data === 'ja_amigos');
+  };
+  $('#convidar').onclick = async () => {
+    const link = location.origin + location.pathname + '?amigo=' + codigo;
+    const texto = `Me adiciona na Ilha! Meu código: ${codigo}`;
+    try { if (navigator.share) { await navigator.share({ title: 'Ilha', text: texto, url: link }); return; } } catch { return; }
+    try { await navigator.clipboard.writeText(texto + '\n' + link); toast('Convite copiado. Cola no WhatsApp. 📋', 3000); } catch { msg('Manda esse código: ' + codigo, true); }
+  };
+  const alvo = el => todos[+el.dataset[Object.keys(el.dataset)[0]]];
+  sheet.querySelectorAll('[data-vis]').forEach(b => b.onclick = () => { const a = alvo(b); visitar({ amigo: a.amigo, nome: a.nome, vitrine: a.vitrine }); });
+  sheet.querySelectorAll('[data-sim]').forEach(b => b.onclick = async () => { const r = await N.responderAmizade(alvo(b).amigo, true); if (r.erro) return msg(r.erro); toast(RESPOSTA_PEDIDO.aceita, 3000); amigos(); });
+  sheet.querySelectorAll('[data-nao]').forEach(b => b.onclick = async () => { const r = await N.responderAmizade(alvo(b).amigo, false); if (r.erro) return msg(r.erro); amigos(); });
+  sheet.querySelectorAll('[data-tirar]').forEach(b => b.onclick = async () => {
+    const a = alvo(b); if (!confirm(a.aceita ? `Desfazer a amizade com ${a.nome}?` : `Cancelar o pedido pra ${a.nome}?`)) return;
+    const r = await N.desfazerAmizade(a.amigo); if (r.erro) return msg(r.erro); amigos();
+  });
+}
+
 function clickHabit(id) {
   const before = S.coins(state), marcosAntes = S.marcosAlcancados(state).map(m => m.dias);
   S.toggle(state, id); salvar(); render();
@@ -221,6 +305,8 @@ async function conta() {
 // Decide quem manda quando o aparelho e a nuvem discordam: vence o save com
 // mais dias marcados. As fotos sao sempre as do aparelho (elas nao sobem).
 async function sincronizar(contaNova) {
+  // amigos: publica a vitrine e mantem o nome do perfil em dia (falha calada se o SQL nao rodou)
+  N.garantirPerfil(state.nome).then(() => N.publicarVitrine(S.vitrine(state)));
   const nuvem = await N.baixar();
   const aqui = N.tamanho(state);
   if (!nuvem || !nuvem.dados) {
@@ -289,7 +375,7 @@ function setup(passo = 1) {
       // guarda hábitos e recompensas ja; setupDone so no fim, senao da pra escapar do passo 3
       state.nome = draft.nome; state.habitos = draft.habitos; state.rewards = draft.rewards; draft = null;
       if (primeiraVez) { salvar(); return setup(3); }
-      salvar(); close(); render(); toast(`De volta à ilha, ${state.nome}. 🏝️`, 3000);
+      salvar(); close(); render(); N.garantirPerfil(state.nome); toast(`De volta à ilha, ${state.nome}. 🏝️`, 3000);
     };
   } else {
     // ---- passo 3: conta. A ilha vive no aparelho; sem conta, trocou de celular e acabou.
@@ -317,6 +403,7 @@ function setup(passo = 1) {
       }
       pronto(); await sincronizar(contaNova);
       toast(`Bem-vindo à ilha, ${state.nome}. Cada dia conta. 🏝️`, 4000);
+      if (lerConvite()) setTimeout(amigos, 1500);
     };
     $('#criar').onclick = async () => { const d = pega(), erro = valida(d); if (erro) return msg(erro); msg('criando...'); fim(await N.criarConta(d.e, d.p), true); };
     $('#entrar').onclick = async () => { const d = pega(), erro = valida(d); if (erro) return msg(erro); msg('entrando...'); fim(await N.entrar(d.e, d.p), false); };
@@ -326,13 +413,16 @@ function setup(passo = 1) {
   }
 }
 
-document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, config: () => setup(1) })[b.dataset.m]());
+document.querySelectorAll('#actions button').forEach(b => b.onclick = () => ({ loja, hist, fotos, info, amigos, config: () => setup(1) })[b.dataset.m]());
 
 // ---------- inicio ----------
 if (S.applyShield(state)) { salvar(); toast('🛡️ Um escudo salvou o dia de ontem.'); }
 render();
 // Se o aparelho ja esta logado, confere a nuvem assim que abrir.
 N.sessao().then(s => { if (s) sincronizar(false); });
+{ const c = new URLSearchParams(location.search).get('amigo');
+  if (c) { guardarConvite(c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)); history.replaceState(null, '', location.pathname); } }
 if (!state.setupDone) setup(1);
+else if (lerConvite()) amigos();
 if (new Date().getDay() === 0) setTimeout(() => takeSnapshot(false), 4000);
 setInterval(render, 60000);

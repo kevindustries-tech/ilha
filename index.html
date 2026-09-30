@@ -33,8 +33,11 @@
   .hab.rest { background:rgba(255,204,77,.18); border-color:var(--gold); }
   .hab.off { opacity:.55; }
   #actions { display:flex; gap:6px; }
+  #visita { display:none; justify-content:space-between; align-items:center; gap:10px; text-align:left; margin-bottom:10px; cursor:default; }
+  #visita .buy { flex:0 0 auto; }
   #actions #btcfg { flex:0 0 46px; font-size:18px; padding:10px 0; }
-  #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:10px 2px; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; }
+  #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:6px 2px 7px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; }
+  #actions button span { display:block; font-size:17px; line-height:1.25; }  /* icone em cima do nome: 5 botoes cabem em 375 px */
   #modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:10; }
   #modal.open { display:flex; }
   #sheet { background:#122a45; width:100%; max-width:520px; max-height:82vh; overflow:auto; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); }
@@ -64,13 +67,15 @@
 </div>
 <div id="toast"></div>
 <div id="bottom">
+  <div id="visita" class="hab"></div>
   <div id="habits">
   </div>
   <div id="actions">
-    <button data-m="loja">🛒 Loja</button>
-    <button data-m="hist">📅 Dias</button>
-    <button data-m="fotos">📷 Fotos</button>
-    <button data-m="info">ℹ️ Ilha</button>
+    <button data-m="loja"><span>🛒</span>Loja</button>
+    <button data-m="hist"><span>📅</span>Dias</button>
+    <button data-m="amigos"><span>👥</span>Amigos</button>
+    <button data-m="fotos"><span>📷</span>Fotos</button>
+    <button data-m="info"><span>ℹ️</span>Ilha</button>
     <button data-m="config" id="btcfg">⚙️</button>
   </div>
 </div>

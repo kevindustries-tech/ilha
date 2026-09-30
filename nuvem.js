@@ -105,15 +105,44 @@ export function tamanho(est) {
 }
 
 // Sobe no maximo uma vez a cada 4 s, e nunca durante o jogo trava a tela.
-let timer = null, pendente = null;
-export function agendarSubida(estado, aviso) {
-  pendente = estado;
+// 'vitrine' e uma funcao: so e calculada na hora de enviar, com o estado mais novo.
+let timer = null, pendente = null, vitrinePendente = null;
+export function agendarSubida(estado, aviso, vitrine) {
+  pendente = estado; if (vitrine) vitrinePendente = vitrine;
   if (timer) return;
   timer = setTimeout(async () => {
     timer = null;
-    const est = pendente; pendente = null;
+    const est = pendente, vt = vitrinePendente; pendente = null; vitrinePendente = null;
     if (!(await sessao())) return;
     const r = await subir(est);
+    if (vt) await publicarVitrine(vt());          // falhar aqui nao atrapalha o backup
     if (aviso) aviso(r);
   }, 4000);
+}
+
+// ---------------------------------------------------------------- amigos ---
+// Tudo passa pelas funcoes do supabase/amigos.sql. O amigo nunca le 'saves': le a
+// vitrine (so numeros e estado da ilha). Se o SQL ainda nao rodou no projeto, as
+// chamadas voltam com 'amigos ainda nao ativados no servidor' em vez de quebrar.
+const faltaSql = e => /does not exist|could not find|schema cache|PGRST20[25]|42P01|42883/i.test(String((e && (e.message + ' ' + e.code)) || ''));
+async function rpc(nome, args) {
+  const sb = await cliente(); if (!sb) return { erro: 'sem conexão com o servidor' };
+  if (!(await sessao())) return { erro: 'entre na sua conta primeiro' };
+  const { data, error } = await sb.rpc(nome, args);
+  if (error) { console.warn(nome + ':', error.message); return { erro: faltaSql(error) ? 'amigos ainda não ativados no servidor' : error.message }; }
+  return { ok: true, data };
+}
+export const garantirPerfil = nome => rpc('garantir_perfil', { nome_personagem: nome || 'Bob' });
+export const pedirAmizade = codigo => rpc('pedir_amizade', { codigo_amigo: String(codigo || '') });
+export const responderAmizade = (amigo, aceitar) => rpc('responder_amizade', { amigo, aceitar });
+export const desfazerAmizade = amigo => rpc('desfazer_amizade', { amigo });
+export const meusAmigos = () => rpc('meus_amigos');
+
+export async function publicarVitrine(dados) {
+  const sb = await cliente(); if (!sb) return { erro: 'sem conexão' };
+  const s = await sessao(); if (!s) return { erro: 'sem sessão' };
+  const { error } = await sb.from('vitrines')
+    .upsert({ user_id: s.user.id, dados, atualizado_em: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (error) { if (!faltaSql(error)) console.warn('vitrine:', error.message); return { erro: error.message }; }
+  return { ok: true };
 }
