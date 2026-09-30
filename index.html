@@ -13,8 +13,11 @@
 <style>
   :root { --bg:#0b1e33; --card:rgba(10,25,45,.82); --txt:#eef4ff; --muted:#9db3cc; --ok:#4cd98a; --gold:#ffcc4d; --line:rgba(255,255,255,.12); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
-  #c { position:fixed; top:0; left:0; width:100vw; height:100vh; display:block; touch-action:none; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  /* texto secundario em qualquer lugar (antes so tinha tamanho dentro de .row; solto, o iPhone
+     usava o tamanho padrao e ainda aumentava -- o "Ninguem ainda" da aba Amigos saia enorme) */
+  .d { font-size:13px; color:var(--muted); line-height:1.4; }
+  #c { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
   #top { position:fixed; top:0; left:0; right:0; padding:calc(env(safe-area-inset-top) + 10px) 14px 8px; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
   .pill { background:var(--card); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-weight:700; font-size:15px; pointer-events:auto; }
   .pill small { font-weight:500; color:var(--muted); margin-left:4px; }
@@ -33,6 +36,10 @@
   .hab.rest { background:rgba(255,204,77,.18); border-color:var(--gold); }
   .hab.off { opacity:.55; }
   #actions { display:flex; gap:6px; }
+  /* puxador: recolhe a grade de habitos pra ver a ilha (com 7 habitos ela tomava metade da tela) */
+  #puxador { display:flex; flex-direction:column; align-items:center; gap:4px; margin:0 auto 8px; padding:6px 18px 7px; background:var(--card); border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:12px; font-weight:600; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+  #puxador .alca { width:36px; height:4px; border-radius:2px; background:rgba(255,255,255,.4); }
+  #habits.recolhido { display:none; }
   .seg { display:flex; gap:6px; }
   .seg button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:9px 4px; font-weight:600; font-size:13px; }
   .seg button.sel { background:var(--ok); color:#053; border-color:var(--ok); }
@@ -46,9 +53,9 @@
   #actions #btcfg { flex:0 0 46px; font-size:18px; padding:10px 0; }
   #actions button { flex:1; background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:12px; padding:6px 2px 7px; font-size:11px; font-weight:600; white-space:nowrap; overflow:hidden; }
   #actions button span { display:block; font-size:17px; line-height:1.25; }  /* icone em cima do nome: 5 botoes cabem em 375 px */
-  #modal { position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:10; }
+  #modal { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center; z-index:10; }
   #modal.open { display:flex; }
-  #sheet { background:#122a45; width:100%; max-width:520px; max-height:82vh; overflow:auto; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); }
+  #sheet { background:#122a45; width:100%; max-width:520px; max-height:calc(100% - env(safe-area-inset-top) - 30px); overflow:auto; -webkit-overflow-scrolling:touch; box-sizing:border-box; border-radius:20px 20px 0 0; padding:16px 16px calc(env(safe-area-inset-bottom) + 16px); }
   #sheet h2 { margin:0 0 12px; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
   #sheet h2 button { background:none; border:none; color:var(--muted); font-size:22px; }
   .row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); gap:10px; }
@@ -76,6 +83,7 @@
 <div id="toast"></div>
 <div id="bottom">
   <div id="visita" class="hab"></div>
+  <button id="puxador" aria-label="recolher ou mostrar os hábitos"><span class="alca"></span><span id="puxtxt">esconder hábitos</span></button>
   <div id="habits">
   </div>
   <div id="actions">

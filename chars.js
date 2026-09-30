@@ -40,7 +40,13 @@ let originais = {};
 const imgBase = {}, mascara = {}, cacheTex = new Map();
 const carregaImg = url => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
 const hexRgb = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-export const corOriginal = (skin, parte) => { const c = (originais[skin] || {})[parte]; return c ? '#' + c.map(v => v.toString(16).padStart(2, '0')).join('') : '#888888'; };
+// A pele original da Naufraga e vermelho-escura (assim na textura da Kenney) e parecia um
+// bicho: quem nao escolhe pele ganha um tom natural.
+const PELE_PADRAO = { survivorFemaleA: '#a8693f' };
+export const corOriginal = (skin, parte) => {
+  if (parte === 'pele' && PELE_PADRAO[skin]) return PELE_PADRAO[skin];
+  const c = (originais[skin] || {})[parte]; return c ? '#' + c.map(v => v.toString(16).padStart(2, '0')).join('') : '#888888';
+};
 
 async function carregarAparencia() {
   try { originais = await (await fetch('assets/visual.json')).json(); } catch { originais = {}; }
@@ -60,9 +66,11 @@ async function carregarAparencia() {
 
 // visual = { estilo: skin, pele?, cabelo?, camisa?, calca? } (hex, ou null pra cor original)
 export function texturaVisual(skin, visual) {
-  const partes = visual ? PARTES.filter(k => visual[k]) : [];
-  if (!partes.length || !mascara[skin] || !imgBase[skin] || !originais[skin]) return textures[skin];
-  const chave = skin + '|' + partes.map(k => k + visual[k]).join('|');
+  visual = { ...(visual || {}) };
+  if (!visual.pele && PELE_PADRAO[skin]) visual.pele = PELE_PADRAO[skin];
+  const partes = PARTES.filter(k => visual[k]), bochecha = corpoDe(skin) === 'm';
+  if ((!partes.length && !bochecha) || !mascara[skin] || !imgBase[skin] || !originais[skin]) return textures[skin];
+  const chave = skin + '|' + partes.map(k => k + visual[k]).join('|') + (bochecha ? '|bochecha' : '');
   if (cacheTex.has(chave)) return cacheTex.get(chave);
   const c = document.createElement('canvas'); c.width = c.height = T;
   const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(imgBase[skin], 0, 0, T, T);
@@ -76,6 +84,12 @@ export function texturaVisual(skin, visual) {
     d[i + 2] = Math.max(0, Math.min(255, alvo[2] + d[i + 2] - orig[2]));
   }
   g.putImageData(img, 0, 0);
+  // bochechas rosadas nas personagens (o mapa de UV e o mesmo pra todas: olhos em y ~110)
+  if (bochecha) for (const x of [135, 186]) {
+    const gr = g.createRadialGradient(x, 128, 0, x, 128, 10);
+    gr.addColorStop(0, 'rgba(255,110,140,.5)'); gr.addColorStop(1, 'rgba(255,110,140,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, 128, 10, 0, Math.PI * 2); g.fill();
+  }
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   cacheTex.set(chave, tex);
   return tex;
@@ -87,7 +101,7 @@ export function visualSorteado(semente, skin) {
   let s = 0; for (const ch of String(semente)) s = (s * 31 + ch.charCodeAt(0)) >>> 0;
   const rnd = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
   const v = { estilo: skin };
-  for (const k of PARTES) if (rnd() < .75) v[k] = PALETAS[k][Math.floor(rnd() * PALETAS[k].length)];
+  for (const k of PARTES) if (k === 'pele' || rnd() < .75) v[k] = PALETAS[k][Math.floor(rnd() * PALETAS[k].length)];
   return v;
 }
 
@@ -110,12 +124,41 @@ export function loadChars() {
 }
 export const charsReady = () => !!base;
 
+// CABELO COMPRIDO. O cabelo da Kenney e pintado na cabeca (curto pra todo mundo). Mulher
+// ganha uma peca de cabelo presa ao osso Head -- acompanha a animacao -- montada em
+// coordenadas do mundo com o boneco parado (cabeca: x +-0,20, y 1,21..1,75, rosto pra +z) e
+// levada pro espaco do osso.
+const corpoDe = skin => (ESTILOS.find(e => e.skin === skin) || {}).corpo;
+function cabeloComprido(group, cor) {
+  let head = null; group.traverse(o => { if (o.isBone && o.name === 'Head') head = o; });
+  if (!head) return;
+  group.updateMatrixWorld(true);
+  // Tudo redondo e com sombreado suave: a primeira versao era facetada (flatShading) e as
+  // mechas eram caixas -- virou um capacete. Cabeca: x +-0,20, y 1,21..1,75, rosto pra +z.
+  const partes = [];
+  // volume em cima e atras (metade de tras de uma esfera, nao cobre o rosto)
+  const volume = new THREE.SphereGeometry(.268, 28, 18, Math.PI - .25, Math.PI + .5, 0, Math.PI * .6);
+  volume.translate(0, 1.475, -.03); partes.push(volume);
+  // cabelo caindo atras ate os ombros: um oval macio
+  const costas = new THREE.SphereGeometry(.25, 24, 18); costas.scale(1.05, 1.3, .62); costas.translate(0, 1.27, -.13); partes.push(costas);
+  // mechas dos lados do rosto, com a ponta redonda e abrindo de leve embaixo
+  for (const sx of [-1, 1]) {
+    const m = new THREE.CapsuleGeometry(.05, .3, 6, 12); m.rotateZ(sx * .1); m.translate(sx * .205, 1.25, .01); partes.push(m);
+  }
+  const inv = head.matrixWorld.clone().invert();
+  const mat = new THREE.MeshStandardMaterial({ color: cor, roughness: .55, side: THREE.DoubleSide });
+  // userData.cabelo: o makeChar poe a textura da roupa em toda malha do boneco, e o cabelo
+  // entrava junto (saia com mancha de sujeira e desenho da camiseta)
+  for (const geo of partes) { geo.applyMatrix4(inv); const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.frustumCulled = false; m.userData.cabelo = true; head.add(m); }
+}
+
 // Cria uma instancia animada. 'visual' (opcional) recolore pele, cabelo, camiseta e calca.
 export function makeChar(skin, escala = 1, visual = null) {
   const group = SkeletonUtils.clone(base);
+  if (corpoDe(skin) === 'm') cabeloComprido(group, (visual && visual.cabelo) || corOriginal(skin, 'cabelo'));   // antes de escalar
   group.scale.multiplyScalar(escala);
   const tex = texturaVisual(skin, visual);
-  group.traverse(o => { if (o.isMesh) { o.material = o.material.clone ? o.material.clone() : o.material; if (Array.isArray(o.material)) o.material = o.material.map(m => { m = m.clone(); m.map = tex; m.needsUpdate = true; return m; }); else { o.material.map = tex; o.material.needsUpdate = true; } } });
+  group.traverse(o => { if (o.isMesh && !o.userData.cabelo) { o.material = o.material.clone ? o.material.clone() : o.material; if (Array.isArray(o.material)) o.material = o.material.map(m => { m = m.clone(); m.map = tex; m.needsUpdate = true; return m; }); else { o.material.map = tex; o.material.needsUpdate = true; } } });
   const mixer = new THREE.AnimationMixer(group);
   const idle = mixer.clipAction(clips.idle), run = mixer.clipAction(clips.run);
   idle.play(); run.play(); run.setEffectiveWeight(0);

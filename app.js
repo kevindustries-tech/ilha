@@ -58,7 +58,7 @@ function render() {
   if (SIM !== null) Object.assign(vt, { perfeitos: tot.perfect, materiais: tot.checks, sequencia: ps, obras: obras.feitas, obraAtual: obras.atual,
     perfeitoHoje: true, feitosHoje: state.habitos.length, folgaHoje: false, clima: { clear: +SIM >= 7, fog: false } });
   scene.apply({ ...vistaDe(visita ? visita.vitrine : vt), dono: visita ? visita.amigo : 'eu' });
-  mostraVisita();
+  mostraVisita(); atualizaPuxador();
   if (SIM === null) {
     const primeira = !state.obrasVistas;
     state.obrasVistas = state.obrasVistas || [];
@@ -87,6 +87,18 @@ function vistaDe(vt) {
     habitantes: S.habitantes(p), tecnologias: S.tecnologias(m), ilhasExtras: S.ilhasExtras(p),
   };
 }
+
+// ---------- puxador dos habitos ----------
+// Com muitos habitos a grade tomava metade da tela e escondia a ilha. Um toque recolhe (fica
+// so o resumo "3 de 7 hoje"), outro abre. Lembrado neste aparelho.
+let recolhido = (() => { try { return localStorage.getItem('ilha.habitosRecolhidos') === '1'; } catch { return false; } })();
+function atualizaPuxador() {
+  $('#habits').classList.toggle('recolhido', recolhido);
+  const iso = S.today(), devidos = state.habitos.filter(h => S.isDue(h, iso)).length, feitos = state.habitos.filter(h => S.checked(state, iso, h.id)).length;
+  $('#puxtxt').textContent = recolhido ? `▲ hábitos · ${feitos} de ${devidos} hoje` : '▼ esconder hábitos';
+  $('#puxador').style.display = visita || !state.habitos.length ? 'none' : '';
+}
+$('#puxador').onclick = () => { recolhido = !recolhido; try { localStorage.setItem('ilha.habitosRecolhidos', recolhido ? '1' : '0'); } catch {} atualizaPuxador(); };
 
 // ---------- visita a ilha de um amigo ----------
 let visita = null;   // { amigo, nome, vitrine } enquanto estou olhando a ilha de alguem
@@ -136,7 +148,7 @@ async function amigos() {
      <div id="msg" class="d" style="font-size:12px;min-height:16px;margin:4px 0"></div>
      ${recebidos.length ? `<div class="t" style="margin:10px 0 4px">Pedidos pra você</div>` + recebidos.map(a => `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">${esc(a.email || '')}</div></div><div style="display:flex;gap:6px"><button class="buy" data-sim="${todos.indexOf(a)}">aceitar</button><button class="ghost" data-nao="${todos.indexOf(a)}">recusar</button></div></div>`).join('') : ''}
      <div class="t" style="margin:10px 0 4px">Amigos</div>
-     ${aceitos.map(linha).join('') || '<div class="d">Ninguém ainda. Manda o seu código pra alguém — quem fecha o dia junto desiste menos.</div>'}
+     ${aceitos.map(linha).join('') || '<div class="d">Ninguém ainda. Adicione pelo e-mail ou toque em convidar — quem fecha o dia junto desiste menos.</div>'}
      ${enviados.length ? `<div class="t" style="margin:10px 0 4px">Esperando resposta</div>` + enviados.map(a => `<div class="row"><div><div class="t">${esc(a.nome)}</div><div class="d">${esc(a.email || '')}</div></div><button class="ghost" data-tirar="${todos.indexOf(a)}">cancelar</button></div>`).join('') : ''}
      <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px">Amigos veem sua ilha, sua sequência e se você fechou o dia — nunca os nomes dos seus hábitos e recompensas. (Eles vão pro backup da sua conta, que só o dono do app acessa.)</div>`);
   const msg = (m, ok) => { const el = $('#msg'); el.textContent = m; el.style.color = ok ? 'var(--ok)' : '#ff8a80'; };
@@ -541,7 +553,9 @@ async function exigirConta(depois = null) {
 // Celular so deixa tocar audio depois de um toque: o som comeca no primeiro toque na tela.
 function iconeSom() { $('#btsom').textContent = SOM.ligado() ? '🔊' : '🔇'; }
 $('#btsom').onclick = () => { const liga = !SOM.ligado(); SOM.configurar({ musica: liga, natureza: liga }); if (liga) SOM.iniciar(); iconeSom(); };
-document.addEventListener('pointerdown', () => { if (SOM.ligado()) SOM.iniciar(); }, { once: true });
+// touchend e click (o iPhone nao destrava audio no pointerdown) -- e sempre, nao so uma vez:
+// voltando do fundo o iPhone congela o audio e so solta num toque novo
+for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => SOM.acordar(), { passive: true });
 setInterval(() => SOM.atualizar(scene.ouvir()), 400);
 iconeSom();
 

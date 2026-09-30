@@ -41,10 +41,42 @@ function criarReverb(seg = 3.2) {
   const r = ctx.createConvolver(); r.buffer = b; return r;
 }
 
+// iPHONE. Tres armadilhas do Safari (no PC o som funcionava e no iPhone nao):
+// 1. a chave de silencio (lateral) cala o Web Audio -- a menos que a sessao de audio esteja
+//    em "playback": navigator.audioSession no iOS 17+, e um <audio> mudo em loop nos antigos;
+// 2. o audio so destrava dentro de um toque de verdade (touchend/click; pointerdown nao conta),
+//    e o Safari quer ver um som tocado nesse toque;
+// 3. voltando do fundo o contexto fica 'interrupted' e so volta num toque novo.
+let silencio = null;
+function wavMudo() {
+  const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer), txt = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+  txt(0, 'RIFF'); v.setUint32(4, 36 + n, true); txt(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); txt(36, 'data'); v.setUint32(40, n, true); b.fill(128, 44);
+  let bin = ''; for (const x of b) bin += String.fromCharCode(x);
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+function destravar() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  try {
+    if (!silencio) { silencio = new Audio(wavMudo()); silencio.loop = true; silencio.setAttribute('playsinline', ''); silencio.volume = .01; }
+    silencio.play().catch(() => {});
+  } catch {}
+  try { const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch {}
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+}
+// chamar em TODO toque/clique: liga na primeira vez e religa depois de voltar do fundo
+export function acordar() {
+  if (!ligado()) return;
+  if (!ctx) { iniciar(); return; }
+  if (ctx.state !== 'running') destravar();
+}
+export const estado = () => ctx ? ctx.state : 'desligado';
+
 export function iniciar() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  if (ctx) { destravar(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   ctx = new AC();
+  destravar();
   mestre = ganho(.8); mestre.connect(ctx.destination);
   busNat = ganho(pref.natureza ? 1 : 0); busNat.connect(mestre);
   busMus = ganho(pref.musica ? .55 : 0); busMus.connect(mestre);
@@ -52,7 +84,11 @@ export function iniciar() {
   ruidoBranco = bufferRuido(false); ruidoMarrom = bufferRuido(true);
   montarNatureza();
   setInterval(agendar, 100);
-  document.addEventListener('visibilitychange', () => { if (!ctx) return; if (document.hidden) ctx.suspend(); else if (ligado()) ctx.resume(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!ctx) return;
+    if (document.hidden) { ctx.suspend(); if (silencio) silencio.pause(); }
+    else if (ligado()) ctx.resume().catch(() => {});   // no iPhone isso pode falhar: o proximo toque (acordar) resolve
+  });
 }
 
 // ---------------------------------------------------------------- natureza continua

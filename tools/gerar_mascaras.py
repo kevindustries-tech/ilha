@@ -21,9 +21,15 @@ ASSETS = os.path.join(AQUI, '..', 'assets')
 T = 512                                              # tamanho da textura no jogo
 CAT = {'pele': 60, 'cabelo': 120, 'camisa': 180, 'calca': 240}
 
+# Franja que cai sobre o olho (so a Skatista): e cabelo mesmo dentro da area do rosto -- sem
+# isso ela ficava um bloco preto na cara de quem pintava o cabelo claro.
+EXTRA_CABELO = {'skaterFemaleA': [(158, 94, 207, 128)]}
 # regioes em coordenadas de 512 (o atlas original e 1024: tudo /2)
 CABECA = (0, 0, 320, 245)
-ROSTO = (112, 60, 212, 170)                          # olho e sobrancelha moram aqui: cabelo nao entra
+# olho e boca moram aqui: cabelo nao entra. Comeca em 100 (e nao 60): acima disso e a franja
+# pintada, e deixar ela fora fazia uma faixa escura na testa de quem pintava o cabelo claro.
+# Vai de x 123 a 200: mais largo pegava cabelo das temporas (ficava um retangulo escuro).
+ROSTO = (123, 100, 200, 170)
 CAMISA = (0, 245, 305, 512)
 CALCA = (305, 382, 512, 512)
 # onde colher a cor dominante de cada parte
@@ -90,7 +96,7 @@ def mascara(skin):
             # prioridade: calca e camiseta (na regiao delas) > cabelo (na cabeca, fora do rosto) > pele (em qualquer lugar)
             if dentro(x, y, CALCA) and parecida(c, dom['calca'], TOL['calca']): mp[x, y] = CAT['calca']
             elif dentro(x, y, CAMISA) and parecida(c, dom['camisa'], TOL['camisa']) and dist(c, dom['pele']) > 20: mp[x, y] = CAT['camisa']
-            elif dentro(x, y, CABECA) and not dentro(x, y, ROSTO) and dist(c, dom['cabelo']) < TOL['cabelo']: mp[x, y] = CAT['cabelo']
+            elif dentro(x, y, CABECA) and (not dentro(x, y, ROSTO) or any(dentro(x, y, r) for r in EXTRA_CABELO.get(skin, []))) and dist(c, dom['cabelo']) < TOL['cabelo']: mp[x, y] = CAT['cabelo']
             elif dist(c, dom['pele']) < TOL['pele']: mp[x, y] = CAT['pele']
     return m, dom, im
 
