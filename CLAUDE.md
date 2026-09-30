@@ -24,7 +24,14 @@ procedural. Publicado em https://kevindustries-tech.github.io/ilha/
 |---|---|
 | `index.html` | UI inteira — CSS e markup inline, importmap do Three |
 | `state.js` | Regras: hábitos, streak, moedas, loja, obras, habitantes, cidade, tecnologias |
-| `scene.js` | Ilha 3D: terreno, prédios, NPCs, dia/noite, clima (o maior, ~1.075 linhas) |
+| `scene.js` | Ilha 3D: terreno, chapada/cachoeira, obras, moradores, dia/noite, clima (o maior) |
+| `natureza.js` | Árvores (5 tipos, instanciadas), vento no shader, coqueiros, macacos, vagalumes |
+| `agua.js` | Mar em shader (onda, raso, espuma), rio e cachoeira com correnteza, névoa |
+| `vida.js` | Bichos novos, araras, cardumes, baleias, navios no horizonte |
+| `rotas.js` | Grade + A* pros moradores não atravessarem construção |
+| `fundir.js` | Funde peças paradas numa malha só (desempenho no celular) |
+| `som.js` | Sons da natureza e trilha, sintetizados (Web Audio) |
+| `supabase/amigos.sql` | Tabelas e funções dos amigos — roda uma vez no SQL Editor |
 | `app.js` | Cola: render da UI, modais, cliques, configuração inicial |
 | `nuvem.js` | Conta e sincronização no Supabase |
 | `chars.js` | Personagens Kenney (FBX + skins), com boneco procedural de fallback |
@@ -43,6 +50,10 @@ Dados em `localStorage['ilha.v2']` (migra do v1).
 - `?sim=N` e `?hora=HH` na URL simulam progresso e hora sem salvar nada.
   Ex.: `?sim=150&hora=21`. Use pra conferir visual sem esperar dias.
 - Servidor de dev: `preview_start {name: "ilha"}`. Serve com `Cache-Control: no-store`.
+- **Medir fps cronometrando os quadros do app**, não com `requestAnimationFrame` no console do
+  navegador de teste: ele é estrangulado e já mediu 2 fps com o app a 60.
+- `node --check` não pega variável sombreada nem shader quebrado: **conferir no navegador** (console +
+  `renderer.properties.get(material).currentProgram.diagnostics`).
 
 ## Segredos
 - A chave do Supabase no `nuvem.js` é a **publishable** — ela foi feita pra ficar no cliente;
