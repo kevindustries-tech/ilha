@@ -136,7 +136,7 @@ async function amigos() {
      <div class="t" style="margin:10px 0 4px">Amigos</div>
      ${aceitos.map(linha).join('') || '<div class="d">Ninguém ainda. Manda o seu código pra alguém — quem fecha o dia junto desiste menos.</div>'}
      ${enviados.length ? `<div class="t" style="margin:10px 0 4px">Esperando resposta</div>` + enviados.map(a => `<div class="row"><div class="t">${esc(a.nome)}</div><button class="ghost" data-tirar="${todos.indexOf(a)}">cancelar</button></div>`).join('') : ''}
-     <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px">Amigos veem sua ilha, sua sequência e se você fechou o dia. Os nomes dos seus hábitos e recompensas não saem do seu aparelho.</div>`);
+     <div class="d" style="font-size:12px;color:var(--muted);margin-top:12px">Amigos veem sua ilha, sua sequência e se você fechou o dia — nunca os nomes dos seus hábitos e recompensas. (Eles vão pro backup da sua conta, que só o dono do app acessa.)</div>`);
   const msg = (m, ok) => { const el = $('#msg'); el.textContent = m; el.style.color = ok ? 'var(--ok)' : '#ff8a80'; };
   $('#add').onclick = async () => {
     const c = $('#cod').value.trim(); if (c.length < 6) return msg('o código tem 6 letras');
