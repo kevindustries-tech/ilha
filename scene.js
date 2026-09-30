@@ -2,11 +2,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { fundirEstatico, JANELA } from './fundir.js';
 import { loadChars, charsReady, makeChar, SKINS } from './chars.js';
 import { criarGrade } from './rotas.js';
 import { criarMar, materialRio, materialCachoeira, materialLago, criarNevoa, atualizarAgua } from './agua.js';
 import { CONSTRUTORES, criarAraras, criarVidaMarinha, criarNavios } from './vida.js';
-import { criarArvores, criarCoqueiros, criarMacacos, tempo as tempoVento, vento, TOPO_COPA, CORES } from './natureza.js';
+import { criarArvores, criarCoqueiros, criarMacacos, criarVagalumes, tempo as tempoVento, vento, TOPO_COPA, CORES } from './natureza.js';
 
 // Qualidade grafica por aparelho: 'leve' corta mata e bichos pela metade. Automatico
 // pela memoria do aparelho; da pra trocar no config (fica so neste aparelho).
@@ -636,6 +641,15 @@ export function createScene(canvas) {
   renderer.toneMappingExposure = 1.25;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, .1, 1600);
+  // BRILHO (bloom): fogueira, postes, farol, janelas e vagalumes brilham de noite. De dia
+  // fica quase desligado. No modo 'leve' nem existe -- sao varias passadas a mais na GPU.
+  let composer = null, bloom = null;
+  if (QUALIDADE !== 'leve') {
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .1, .55, .82); composer.addPass(bloom);
+    composer.addPass(new OutputPass());
+  }
   camera.position.set(52 * EV, 38 * EV, 60 * EV);
   const controls = new OrbitControls(camera, canvas);
   controls.target.set(0, 1, 0);
@@ -682,13 +696,16 @@ export function createScene(canvas) {
   // sem escrever profundidade), entao sol, lua e estrelas continuam aparecendo por cima.
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { zenite: { value: new THREE.Color(0x2f6fb5) }, horizonte: { value: new THREE.Color(0x9fd0f5) } },
+    uniforms: { zenite: { value: new THREE.Color(0x2f6fb5) }, horizonte: { value: new THREE.Color(0x9fd0f5) }, uLinear: { value: 0 } },
     vertexShader: 'varying float alt; void main(){ alt = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: 'uniform vec3 zenite; uniform vec3 horizonte; varying float alt;' +
-      'void main(){ gl_FragColor = vec4(mix(horizonte, zenite, smoothstep(-0.08, 0.62, alt)), 1.0); }',
+    // uLinear = 1 quando ha pos-processamento: ai a saida ainda vai ser convertida pra sRGB,
+    // entao o ceu entrega a cor ja linearizada (senao a noite fica cinza-claro la no alto)
+    fragmentShader: 'uniform vec3 zenite; uniform vec3 horizonte; uniform float uLinear; varying float alt;' +
+      'void main(){ vec3 c = mix(horizonte, zenite, smoothstep(-0.08, 0.62, alt)); if (uLinear > .5) c = pow(c, vec3(2.2)); gl_FragColor = vec4(c, 1.0); }',
   });
   const skyDome = new THREE.Mesh(new THREE.SphereGeometry(760, 32, 18), skyMat);
   skyDome.renderOrder = -1; skyDome.frustumCulled = false; scene.add(skyDome);
+  skyMat.uniforms.uLinear.value = composer ? 1 : 0;
 
   // Nuvens fofas: bolhas lisas fundidas numa geometria so por nuvem (um desenho cada).
   // As antigas eram icosaedros facetados cinza e, de longe, pareciam pedra voando.
@@ -851,6 +868,14 @@ export function createScene(canvas) {
     pedras.forEach(([x, y, z, r], i) => { e.set(Math.random() * 3, Math.random() * 3, 0); m.setMatrixAt(i, M.compose(new THREE.Vector3(x, y, z), q.setFromEuler(e), new THREE.Vector3(r, r * (.7 + Math.random() * .3), r))); m.setColorAt(i, c.setHex(C.rock).offsetHSL(0, 0, Math.random() * .08 - .04)); });
     m.castShadow = true; m.receiveShadow = true; island.add(m);
   }
+  // VAGALUMES: beira da mata em volta da vila e trecho da mata fechada
+  const pontosVagalume = [];
+  for (let i = 0; i < 220 * DENS; i++) {
+    const naMata = i % 3 === 0, a = naMata ? MATA_FECHADA.a + (Math.random() - .5) * 1.1 : Math.random() * 6.28;
+    const r = naMata ? R_VILA + 34 + Math.random() * 50 : R_VILA + 2 + Math.random() * 26, x = Math.cos(a) * r, z = Math.sin(a) * r;
+    pontosVagalume.push([x, Math.max(.4, alturaIlha(x, z)) + .5 + Math.random() * 2.2, z]);
+  }
+  const vagalumes = criarVagalumes(pontosVagalume); island.add(vagalumes.pontos);
   // MACACOS: pulam de copa em copa na mata fechada
   const macacos = criarMacacos(copasMata, Math.round(9 * DENS)); island.add(macacos.grupo);
 
@@ -860,12 +885,13 @@ export function createScene(canvas) {
     const c = { ...cfg, casa: [cfg.casa[0] * K, cfg.casa[1] * K], raio: cfg.raio * K };
     const g = c.tipo ? CONSTRUTORES[c.tipo](c) : bicho(c);
     if (c.tipo && c.esc) g.scale.setScalar(c.esc);
+    fundirEstatico(g);
     g.position.set(c.casa[0], alturaIlha(c.casa[0], c.casa[1]), c.casa[1]); island.add(g);
     fauna.push({ g, cfg: c, x: c.casa[0], z: c.casa[1], tx: c.casa[0], tz: c.casa[1], wait: Math.random() * 6, rabo: g.getObjectByName('rabo') });
   }
   // CARANGUEJOS na areia (andam de lado de proposito) -- perambulam perto de casa, na praia
   for (let i = 0; i < 12 * DENS; i++) {
-    const a = Math.random() * 6.28, [x, z] = naBeira(a, .25), g = CONSTRUTORES.caranguejo(); g.scale.setScalar(1.3);
+    const a = Math.random() * 6.28, [x, z] = naBeira(a, .25), g = fundirEstatico(CONSTRUTORES.caranguejo()); g.scale.setScalar(1.3);
     g.position.set(x, alturaIlha(x, z), z); island.add(g);
     fauna.push({ g, cfg: { casa: [x, z], raio: 2.5, vel: .7, caranguejo: true }, x, z, tx: x, tz: z, wait: Math.random() * 4 });
   }
@@ -928,7 +954,7 @@ export function createScene(canvas) {
   // Destrocos na praia nordeste. O y vem do terreno: com y fixo o aviao ficou 5 m
   // enterrado quando a ilha virou malha gerada (antes o mapa era um disco chapado).
   const AVIAO = naBeira(-.735);
-  const aviao = buildAviao(); aviao.scale.setScalar(1.6); aviao.position.set(AVIAO[0], alturaIlha(AVIAO[0], AVIAO[1]) - .2, AVIAO[1]); aviao.rotation.y = -.7; island.add(aviao);
+  const aviao = fundirEstatico(buildAviao()); aviao.scale.setScalar(1.6); aviao.position.set(AVIAO[0], alturaIlha(AVIAO[0], AVIAO[1]) - .2, AVIAO[1]); aviao.rotation.y = -.7; island.add(aviao);
   // BARRACA feita com a lona do aviao: primeira casa do Bob (some quando a casa da familia chega)
   function buildBarraca() {
     const g = new THREE.Group();
@@ -950,6 +976,8 @@ export function createScene(canvas) {
   function put(name, obj, x, z, rotY = 0) {
     if (slots[name]) { island.remove(slots[name]); slots[name].traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
     if (!obj) { delete slots[name]; return; }
+    // pecas paradas viram uma malha so (menos gente: personagem animado nao se funde)
+    if (name !== 'personagem' && !name.startsWith('hab_') && !name.startsWith('vila_')) fundirEstatico(obj);
     const [e, ey] = escalaDe(name); obj.scale.multiply(new THREE.Vector3(e, ey, e)); obj.userData.esc = obj.scale.clone();
     // y do terreno: dentro do planalto da vila alturaIlha devolve .55 exato, entao a vila
     // nao se mexe. Com y fixo, lote fora do planalto (pier, farol) ficava enterrado.
@@ -963,16 +991,18 @@ export function createScene(canvas) {
     const sig = nomes.join('|'); if (sig === assinaturaGrade) return; assinaturaGrade = sig;
     grade.limpar();
     const bb = new THREE.Box3();
+    const marca = () => {
+      const chao = alturaIlha((bb.min.x + bb.max.x) / 2, (bb.min.z + bb.max.z) / 2);
+      if (bb.min.y > chao + 1.7) return;                     // bandeirinha, telhado alto: passa por baixo
+      if (bb.max.y < chao + .12) return;                     // tapete, trilha: pisa em cima
+      grade.marcarCaixa(bb.min.x - .35, bb.min.z - .35, bb.max.x + .35, bb.max.z + .35);
+    };
     for (const n of nomes) {
-      slots[n].updateMatrixWorld(true);
-      slots[n].traverse(o => {
-        if (!o.isMesh) return;
-        bb.setFromObject(o);
-        const chao = alturaIlha((bb.min.x + bb.max.x) / 2, (bb.min.z + bb.max.z) / 2);
-        if (bb.min.y > chao + 1.7) return;                   // bandeirinha, telhado alto: passa por baixo
-        if (bb.max.y < chao + .12) return;                   // tapete, trilha: pisa em cima
-        grade.marcarCaixa(bb.min.x - .35, bb.min.z - .35, bb.max.x + .35, bb.max.z + .35);
-      });
+      const g = slots[n]; g.updateMatrixWorld(true);
+      // a malha fundida vira uma caixa so, enorme (a palicada inteira, a praca inteira):
+      // pra rota valem as caixas das pecas originais, guardadas na fusao
+      for (const c of g.userData.caixas || []) { bb.copy(c).applyMatrix4(g.matrixWorld); marca(); }
+      g.traverse(o => { if (!o.isMesh || o.userData.fundido) return; bb.setFromObject(o); marca(); });
     }
     for (const a of arvoresDaBorda) if (a.tipo !== 'arbusto') grade.marcarCirculo(a.x, a.z, .55);
   }
@@ -984,10 +1014,10 @@ export function createScene(canvas) {
   unlock.vizinha.position.set(R_ILHA + 4 + 90 * .55 + 3, 0, 12);
   { const a = .54, r = costaEm(a, R_ILHA, 0) + 34; unlock.navio.position.set(Math.cos(a) * r, -.3, Math.sin(a) * r); }
   { const a = -1.63, r = costaEm(a, R_ILHA, 0) + 110; unlock.montanha.position.set(Math.cos(a) * r, -.5, Math.sin(a) * r); unlock.montanha.scale.setScalar(K * 1.5); }
-  for (const k in unlock) scene.add(unlock[k]);
+  for (const k in unlock) { fundirEstatico(unlock[k], { materialProprio: true }); scene.add(unlock[k]); }
   const extras = new THREE.Group(); scene.add(extras);
   const arquipelago = []; // 8 ilhas naturais, sempre visiveis
-  for (let i = 0; i < 8; i++) { const g = ilhaVizinhaGrande(i); const a = .55 + i * .79, r = costaEm(a, R_ILHA, 0) + 62 + (i % 3) * 30; g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); g.rotation.y = -a; scene.add(g); arquipelago.push(g); }
+  for (let i = 0; i < 8; i++) { const g = fundirEstatico(ilhaVizinhaGrande(i)); const a = .55 + i * .79, r = costaEm(a, R_ILHA, 0) + 62 + (i % 3) * 30; g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); g.rotation.y = -a; scene.add(g); arquipelago.push(g); }
   const mar = criarMar(R_ILHA, [...arquipelago.map((g, i) => [g.position.x, g.position.z, (20 + (i % 3) * 5) * 1.05]), [unlock.vizinha.position.x, unlock.vizinha.position.z, 4.5]]);
   scene.add(mar);
   window.__ilha = { scene, unlock, renderer, camera, controls, npcState, slots };
@@ -1018,7 +1048,7 @@ export function createScene(canvas) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     const mudou = canvas.width !== w * renderer.getPixelRatio() || canvas.height !== h * renderer.getPixelRatio();
-    if (mudou) renderer.setSize(w, h, false);
+    if (mudou) { renderer.setSize(w, h, false); if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); } }
     // o aspect precisa ser aplicado SEMPRE, nao so quando o canvas muda de tamanho:
     // na primeira carga ele ja nasce do tamanho certo, 'mudou' e falso, e o aspect
     // ficava em 1 (o valor do construtor) -- que era o que fazia a ilha abrir na
@@ -1169,7 +1199,7 @@ export function createScene(canvas) {
     // ilhas extras (infinito): uma nova a cada 25 dias perfeitos depois do navio
     // ocupacao do arquipelago (a ilha ja existia; Bob constroi cais + casa nela)
     const nOcup = Math.min(v.ilhasExtras || 0, arquipelago.length);
-    while (extras.children.length < nOcup) { const i = extras.children.length; const g = buildOcupacao(i); g.position.copy(arquipelago[i].position); g.position.y = .5; g.rotation.copy(arquipelago[i].rotation); extras.add(g); }
+    while (extras.children.length < nOcup) { const i = extras.children.length; const g = fundirEstatico(buildOcupacao(i)); g.position.copy(arquipelago[i].position); g.position.y = .5; g.rotation.copy(arquipelago[i].rotation); extras.add(g); }
     while (extras.children.length > nOcup) extras.remove(extras.children[extras.children.length - 1]);
     // tecnologia (Bob e um genio): moinho, paineis, antena, parabolica, postes
     const tec = v.tecnologias || [];
@@ -1193,6 +1223,7 @@ export function createScene(canvas) {
 
   function pulse(name) { const g = slots[name]; if (g) pulses.push({ g, t: 0 }); }
 
+  const BRANCO = new THREE.Color(0xffffff);
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame); resize();
@@ -1201,7 +1232,8 @@ export function createScene(canvas) {
     // ceu e sol
     const sky = skyColor(hour); scene.background = sky;
     // horizonte mais claro, zenite mais fundo: e isso que da profundidade ao ceu
-    skyMat.uniforms.horizonte.value.copy(sky).lerp(new THREE.Color(0xffffff), .28);
+    // o horizonte clareia de dia; de noite quase nada (com 28% fixo a noite ficava cinza)
+    skyMat.uniforms.horizonte.value.copy(sky).lerp(BRANCO, .05 + .23 * Math.max(Math.sin((hour - 6) / 12 * Math.PI), 0));
     skyMat.uniforms.zenite.value.copy(sky).multiplyScalar(.62);
     skyDome.position.copy(camera.position);
     const foggy = view && view.weather.fog;
@@ -1349,7 +1381,12 @@ export function createScene(canvas) {
     if (camera.position.y < chaoCam + 1.6) camera.position.y = chaoCam + 1.6;
     sun.target.position.set(alvo.x, 0, alvo.z);
     sun.position.x += alvo.x; sun.position.z += alvo.z;
-    controls.update(); renderer.render(scene, camera);
+    controls.update();
+    // quanto de noite esta (0 de dia, 1 no escuro): comanda brilho, janelas e vagalumes
+    const escuro = THREE.MathUtils.clamp(.45 - sunUp * 2.2, 0, 1);
+    JANELA.emissiveIntensity = .04 + escuro * 1.7;
+    vagalumes.atualizar(t, escuro);
+    if (composer) { bloom.strength = .08 + escuro * .9; composer.render(); } else renderer.render(scene, camera);
   }
   resize(); enquadrar();          // enquadra antes do primeiro quadro
   requestAnimationFrame(frame);

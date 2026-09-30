@@ -2,6 +2,7 @@
 // garca, caranguejo), araras voando, cardumes, peixe pulando, baleias e os navios
 // que passam la no horizonte. Low-poly, montado por codigo, sem arquivo externo.
 import * as THREE from 'three';
+import { fundirEstatico } from './fundir.js';
 
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...extra });
 function box(w, h, d, cor, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(cor)); m.position.set(x, y, z); m.castShadow = true; return m; }
@@ -156,7 +157,7 @@ export function criarVidaMarinha(pontosRasos, R_ILHA, qtdBaleias = 3) {
     b.add(cauda);
     const esguicho = new THREE.Group(); esguicho.position.set(0, 1.2, 2.2);
     for (let e = 0; e < 8; e++) { const gota = new THREE.Mesh(new THREE.IcosahedronGeometry(.35, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false })); gota.userData.fase = e / 8; esguicho.add(gota); }
-    b.add(esguicho); b.scale.setScalar(1.3);
+    b.add(esguicho); fundirEstatico(b); b.scale.setScalar(1.3);
     // alem do arquipelago (as vizinhas ficam ate ~R_ILHA*2,3 do centro) e aquem dos navios
     b.userData = { r: R_ILHA * 2.45 + i * 45, a: i * 2.1, v: (.012 + i * .003) * (i % 2 ? 1 : -1), ciclo: 26 + i * 7, fase: i * 9, cauda, esguicho };
     g.add(b); baleias.push(b);
@@ -225,6 +226,7 @@ function navioDe(tipo) {
     for (let d = 0; d < 3; d++) g.add(box(6 - d, 1.6, 30 - d * 6, 0xffffff, 0, 3.8 + d * 1.6, -2 + d * 1.5));
     for (const z of [-4, 4]) { g.add(box(1.8, 3.2, 2.6, 0xd62828, 0, 9.2, z)); g.add(box(1.9, .8, 2.7, 0x111111, 0, 11.1, z)); }
   }
+  fundirEstatico(g);
   g.traverse(o => { if (o.isMesh) o.castShadow = false; });
   return g;
 }

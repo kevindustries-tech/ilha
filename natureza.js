@@ -186,3 +186,26 @@ export function criarMacacos(copas, quantos = 8) {
   }
   return { grupo: g, atualizar };
 }
+
+// ---------------------------------------------------------------- vagalumes
+// Pontinhos que piscam na beira da mata a noite. Cor acima de 1 (fora do tone mapping)
+// de proposito: e o que faz o brilho (bloom) pegar neles.
+export function criarVagalumes(pontos) {
+  const n = pontos.length, pos = new Float32Array(n * 3), cor = new Float32Array(n * 3), base = pontos.map(p => [...p, Math.random() * 6.28]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(cor, 3));
+  const mat = new THREE.PointsMaterial({ size: .32, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+  const p = new THREE.Points(geo, mat); p.frustumCulled = false;
+  function atualizar(t, noite) {
+    p.visible = noite > .05;
+    if (!p.visible) return;
+    for (let i = 0; i < n; i++) {
+      const [x, y, z, f] = base[i];
+      pos[i * 3] = x + Math.sin(t * .3 + f) * 1.2; pos[i * 3 + 1] = y + Math.sin(t * .5 + f * 2) * .6; pos[i * 3 + 2] = z + Math.cos(t * .27 + f) * 1.2;
+      const pisca = Math.max(0, Math.sin(t * 2.2 + f * 5)) ** 3 * noite * 2.4;
+      cor[i * 3] = pisca * 1.0; cor[i * 3 + 1] = pisca * .95; cor[i * 3 + 2] = pisca * .35;
+    }
+    geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+  }
+  return { pontos: p, atualizar };
+}

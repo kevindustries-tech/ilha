@@ -1,4 +1,4 @@
-import { createScene } from './scene.js';
+import { createScene, QUALIDADE } from './scene.js';
 import * as S from './state.js';
 import * as N from './nuvem.js';
 
@@ -335,6 +335,7 @@ function setup(passo = 1) {
   if (passo === 1) {
     open(`<h2>⚙️ Seus hábitos <span class="d" style="font-size:12px">passo 1 de ${state.setupDone ? 2 : 3}</span></h2>
       <div class="row"><div class="t">Nome de quem caiu na ilha</div><input class="price" style="width:140px" id="nome" value="${esc(draft.nome)}"></div>
+      ${state.setupDone ? `<div class="row"><div><div class="t">Gráficos</div><div class="d">leve: menos mata e sem brilho noturno — pra celular mais simples</div></div><select class="price" style="width:auto" id="qual"><option value="alta" ${QUALIDADE !== 'leve' ? 'selected' : ''}>alta</option><option value="leve" ${QUALIDADE === 'leve' ? 'selected' : ''}>leve</option></select></div>` : ''}
       <div class="d" style="font-size:13px;color:var(--muted);margin:10px 0 6px">Todo hábito cumprido vira material pra próxima obra da ilha — não importa qual hábito seja. Toque numa sugestão pra adicionar, ou crie o seu.</div>
       <div id="sug" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${S.SUGESTOES_HABITOS.map((s, i) => draft.habitos.some(h => h.nome === s.nome) ? '' : `<button class="ghost" data-sug="${i}">${s.icone} ${esc(s.nome)}</button>`).join('')}<button class="ghost" id="novo">➕ outro</button></div>
       <div id="lista">${draft.habitos.map((h, i) => `<div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
@@ -346,6 +347,8 @@ function setup(passo = 1) {
         </div></div>`).join('') || '<div class="d">Nenhum hábito ainda.</div>'}</div>
       <button class="buy" id="prox" style="margin-top:14px;width:100%" ${draft.habitos.length ? '' : 'disabled'}>continuar →</button>`, state.setupDone);
     $('#nome').onchange = e => draft.nome = e.target.value.trim() || 'Bob';
+    // qualidade e deste aparelho (localStorage), nao da conta: um celular fraco nao rebaixa o PC
+    if ($('#qual')) $('#qual').onchange = e => { try { localStorage.setItem('ilha.qualidade', e.target.value); } catch {} if (confirm('Recarregar agora pra aplicar os gráficos?')) location.reload(); };
     sheet.querySelectorAll('[data-sug]').forEach(b => b.onclick = () => { const s = S.SUGESTOES_HABITOS[+b.dataset.sug]; draft.habitos.push({ id: S.uid(), nome: s.nome, icone: s.icone, tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); });
     $('#novo').onclick = () => { const nome = prompt('Nome do hábito:'); if (!nome) return; const icone = prompt('Um emoji pra ele:', '⭐') || '⭐'; draft.habitos.push({ id: S.uid(), nome: nome.trim(), icone: icone.trim().slice(0, 2), tipo: 'diario', dias: [], vezes: 3, desde: S.today() }); setup(1); };
     sheet.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { draft.habitos.splice(+b.dataset.del, 1); setup(1); });
