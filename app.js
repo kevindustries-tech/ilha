@@ -149,7 +149,7 @@ function clickHabit(id) {
   S.toggle(state, id); salvar(); render();
   const after = S.coins(state), iso = S.today();
   if (!S.checked(state, iso, id)) return;
-  scene.pulse('deposito');
+  scene.pulse('deposito_pilha');
   // O bonus de marco entra no saldo junto com o dia. Sem separar, o 7o dia perfeito
   // mostrava "Dia perfeito! +13" (1 do habito + 2 do dia + 10 da Primeira semana) e o
   // toast do marco, disparado no render(), era sobrescrito antes de aparecer.
