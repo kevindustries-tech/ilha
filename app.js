@@ -61,14 +61,20 @@ function render() {
   salvar();
 }
 function clickHabit(id) {
-  const before = S.coins(state);
+  const before = S.coins(state), marcosAntes = S.marcosAlcancados(state).map(m => m.dias);
   S.toggle(state, id); salvar(); render();
-  const after = S.coins(state);
-  if (S.checked(state, S.today(), id)) {
-    scene.pulse('deposito');
-    if (S.isPerfect(state, S.today())) toast(`✨ Dia perfeito! +${after - before} moedas. A fogueira acende hoje à noite.`);
-    else toast(`+${after - before} moeda${after - before > 1 ? 's' : ''}`);
-  }
+  const after = S.coins(state), iso = S.today();
+  if (!S.checked(state, iso, id)) return;
+  scene.pulse('deposito');
+  // O bonus de marco entra no saldo junto com o dia. Sem separar, o 7o dia perfeito
+  // mostrava "Dia perfeito! +13" (1 do habito + 2 do dia + 10 da Primeira semana) e o
+  // toast do marco, disparado no render(), era sobrescrito antes de aparecer.
+  const novos = S.marcosAlcancados(state).filter(m => !marcosAntes.includes(m.dias));
+  const doMarco = novos.reduce((t, m) => t + m.bonus, 0), doDia = after - before - doMarco;
+  const marco = novos.map(m => ` 🏆 ${m.nome}: +${m.bonus} (desbloqueou ${m.desbloqueia}).`).join('');
+  const mult = S.multiplierAt(state, iso), vezes = mult > 1 ? ` (sequência ×${String(mult).replace('.', ',')})` : '';
+  if (S.isPerfect(state, iso)) toast(`✨ Dia perfeito! +${doDia} moedas${vezes}.${marco} A fogueira acende hoje à noite.`, marco ? 6000 : 3000);
+  else toast(`+${doDia} moeda${doDia > 1 ? 's' : ''}${vezes}${marco}`, marco ? 6000 : 2600);
 }
 
 // ---------- modais ----------

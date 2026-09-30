@@ -180,7 +180,7 @@ export function totals(s) {
   }
   return t;
 }
-function multiplierAt(s, iso) {
+export function multiplierAt(s, iso) {
   let n = 0, d = addDays(iso, -1);
   while ((isPerfect(s, d) || s.shieldsUsed[d]) && d >= s.start) { n++; d = addDays(d, -1); if (n > 5000) break; }
   if (isPerfect(s, iso)) n++;
@@ -199,6 +199,9 @@ export const MILESTONES = [
   { dias: 100, bonus: 100, nome: 'Cem dias perfeitos', desbloqueia: 'Navio' },
   { dias: 200, bonus: 150, nome: 'Duzentos dias',      desbloqueia: 'Montanha' },
 ];
+// Marcos ja alcancados (por dias perfeitos acumulados, nao seguidos). O bonus deles
+// entra no saldo no mesmo instante em que o dia fecha.
+export function marcosAlcancados(s) { const p = totals(s).perfect; return MILESTONES.filter(m => p >= m.dias); }
 export function coins(s) {
   let c = 0;
   for (const iso of Object.keys(s.days)) c += coinsEarnedOn(s, iso);
