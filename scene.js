@@ -3,6 +3,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { loadChars, charsReady, makeChar, SKINS } from './chars.js';
 import { criarGrade } from './rotas.js';
+import { criarArvores, criarCoqueiros, criarMacacos, tempo as tempoVento, vento, TOPO_COPA, CORES } from './natureza.js';
+
+// Qualidade grafica por aparelho: 'leve' corta mata e bichos pela metade. Automatico
+// pela memoria do aparelho; da pra trocar no config (fica so neste aparelho).
+export const QUALIDADE = (() => { try { const q = localStorage.getItem('ilha.qualidade'); if (q) return q; } catch {} return navigator.deviceMemory && navigator.deviceMemory <= 4 ? 'leve' : 'alta'; })();
+const DENS = QUALIDADE === 'leve' ? .5 : 1;
 
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: .9, ...extra });
 const C = {
@@ -511,6 +517,15 @@ function alturaIlha(x, z) {
   }
   return h;
 }
+// MATA FECHADA: a oeste, floresta densa e escura -- arvores altas, sub-bosque, macacos.
+// O contorno sai de um ruido, pra nao virar uma fatia de pizza.
+const MATA_FECHADA = { a: 3.2, meia: .62, fade: .3 };
+function fatorMataFechada(x, z) {
+  let da = Math.atan2(z, x) - MATA_FECHADA.a; da = Math.atan2(Math.sin(da), Math.cos(da));
+  const ang = 1 - suave(MATA_FECHADA.meia, MATA_FECHADA.meia + MATA_FECHADA.fade, Math.abs(da));
+  const contorno = suave(-.35, .25, ruidoSuave(x * .9 / K + 40, z * .9 / K));
+  return ang * suave(R_VILA + 22, R_VILA + 36, Math.hypot(x, z)) * (.35 + .65 * contorno);
+}
 // Ponto na beira d'agua numa direcao: vem do mar pra terra ate o chao passar de 'alvo'.
 // Avião, píer e farol usam isso -- com coordenada escrita a mao eles ficaram enterrados
 // da ultima vez que o terreno mudou.
@@ -745,33 +760,59 @@ export function createScene(canvas) {
   }
 
   // PEDRAS espalhadas pela costa, assentadas no relevo
+  // (instanciadas: cada pedra solta era uma chamada de desenho)
+  const pedras = [];
   for (let i = 0; i < 110; i++) {
     const a = Math.random() * 6.28, r = costaEm(a, R_ILHA, 0) * (.95 + Math.random() * .09);
-    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    const rk = sphere(.35 + Math.random() * .9, C.rock, x, y + .1, z);
-    rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    pedras.push([x, alturaIlha(x, z) + .1, z, .35 + Math.random() * .9]);
   }
   // COQUEIROS na faixa de areia
-  for (let i = 0; i < 70; i++) {
+  const coqueiros = [];
+  for (let i = 0; i < 110 * DENS; i++) {
     const a = Math.random() * 6.28, r = costaEm(a, R_ILHA, 0) * (.9 + Math.random() * .06);
     const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    if (y < .1) continue;
-    const p = palm(x, z, Math.random() * 6.28); p.position.y = y - .1; island.add(p);
+    if (y < .1 || y > 4) continue;
+    coqueiros.push({ x, y: y - .1, z, rot: a + Math.PI + (Math.random() - .5) * 1.2, incl: .1 + Math.random() * .2 });   // inclina pro mar
   }
+  island.add(criarCoqueiros(coqueiros));
 
   // MATA: acompanha o relevo, evita praia, serra alta, lago e a clareira da vila
-  const arvores = [];
-  for (let k = 0; k < 2600; k++) {
+  const arvores = [], copasMata = [];
+  const escolheTipo = (y, mf) => {
+    const r = Math.random();
+    if (y > 26) return r < .75 ? 'pinheiro' : 'folhosa';                       // chapada e encosta: mais pinheiro
+    if (mf > .5) return r < .35 ? 'emergente' : r < .97 ? 'folhosa' : 'ipe';  // mata fechada
+    return r < .46 ? 'folhosa' : r < .88 ? 'pinheiro' : r < .95 ? 'ipe' : 'emergente';
+  };
+  const ESC = { pinheiro: [.75, .8], folhosa: [.8, .6], emergente: [1.0, .45], ipe: [.8, .4] };
+  const planta = (x, y, z, tipo, mf) => {
+    const [e0, de] = ESC[tipo], e = e0 + Math.random() * de;
+    const a = { tipo, x, y: y - .25, z, e, rot: Math.random() * 6.28 };
+    if (mf > .5 && tipo === 'folhosa') a.cor = CORES.emergente[arvores.length % 4];   // mata fechada e mais escura
+    arvores.push(a);
+    if (mf > .5 && (tipo === 'folhosa' || tipo === 'emergente')) copasMata.push([x, a.y + TOPO_COPA[tipo] * e, z]);
+  };
+  const lugarDeArvore = (x, z, y) => !(y < 1.0 || y > 40
+    || Math.hypot(x - LAGO[0], z - LAGO[1]) < LAGO_R + 4
+    || Math.hypot(x - POCO.x, z - POCO.z) < POCO.r + 3 || distSegmento(x, z, RIO[0], RIO[1])[0] < 3.5
+    || Math.hypot(alturaIlha(x + .8, z) - alturaIlha(x - .8, z), alturaIlha(x, z + .8) - alturaIlha(x, z - .8)) > 2.2);   // nada pendurado no paredao
+  for (let k = 0; k < 3000 * DENS; k++) {
     const a = Math.random() * 6.28, r = R_VILA + 16 + Math.random() * (R_ILHA * 1.25 - R_VILA - 16);
     const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    if (y < 1.0 || y > 36) continue;
-    if (Math.hypot(x - LAGO[0], z - LAGO[1]) < LAGO_R + 4) continue;
-    if (Math.hypot(x - POCO.x, z - POCO.z) < POCO.r + 3 || distSegmento(x, z, RIO[0], RIO[1])[0] < 3.5) continue;
-    // nada de arvore pendurada no paredao
-    if (Math.hypot(alturaIlha(x + .8, z) - alturaIlha(x - .8, z), alturaIlha(x, z + .8) - alturaIlha(x, z - .8)) > 2.2) continue;
-    arvores.push([x, y - .25, z, .75 + Math.random() * .8, Math.random() * 6.28]);
+    if (!lugarDeArvore(x, z, y)) continue;
+    const mf = fatorMataFechada(x, z);
+    if (mf < .5 && Math.random() < .2) continue;                                // mata comum um pouco mais aberta
+    planta(x, y, z, escolheTipo(y, mf), mf);
   }
-  island.add(florestaDensa(arvores));
+  // MATA FECHADA: mais arvore e sub-bosque (arbusto) no trecho oeste
+  for (let k = 0; k < 2400 * DENS; k++) {
+    const a = MATA_FECHADA.a + (Math.random() - .5) * 2 * (MATA_FECHADA.meia + .1), r = R_VILA + 30 + Math.random() * (R_ILHA * 1.2 - R_VILA - 30);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z), mf = fatorMataFechada(x, z);
+    if (mf < .55 || !lugarDeArvore(x, z, y)) continue;
+    if (Math.random() < .45) arvores.push({ tipo: 'arbusto', x, y: y - .1, z, e: .7 + Math.random() * .7, rot: Math.random() * 6.28 });
+    else planta(x, y, z, escolheTipo(y, mf), mf);
+  }
 
   // BORDA DA MATA: arvores soltas e arbustos entre a clareira e a mata fechada,
   // pra nao existir uma linha reta separando vila de floresta.
@@ -781,22 +822,28 @@ export function createScene(canvas) {
     const d = Math.pow(Math.random(), .65);                 // adensa perto da mata
     const r = R_VILA + 3 + d * 16;
     const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    borda.push([x, y - .2, z, .45 + Math.random() * .6, Math.random() * 6.28]);
+    const t = Math.random();
+    borda.push({ tipo: t < .5 ? 'folhosa' : t < .9 ? 'pinheiro' : 'ipe', x, y: y - .2, z, e: .5 + Math.random() * .55, rot: Math.random() * 6.28 });
   }
-  island.add(florestaDensa(borda));
   const arvoresDaBorda = borda;
   for (let k = 0; k < 110; k++) {
     const a = Math.random() * 6.28, r = R_VILA + 2 + Math.random() * 18;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    const arb = sphere(.4 + Math.random() * .5, k % 3 ? 0x4e9e52 : 0x5cb85c, x, y + .25, z);
-    arb.scale.y = .62; island.add(arb);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    borda.push({ tipo: 'arbusto', x, y: alturaIlha(x, z) - .05, z, e: .45 + Math.random() * .5, rot: Math.random() * 6.28 });
   }
+  island.add(criarArvores([...arvores, ...borda]));
   for (let k = 0; k < 40; k++) {
     const a = Math.random() * 6.28, r = R_VILA + 4 + Math.random() * 16;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r, y = alturaIlha(x, z);
-    const rk = sphere(.3 + Math.random() * .55, C.rock, x, y + .12, z);
-    rk.rotation.set(Math.random(), Math.random(), 0); island.add(rk);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    pedras.push([x, alturaIlha(x, z) + .12, z, .3 + Math.random() * .55]);
   }
+  {
+    const m = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), mat(0xffffff), pedras.length), M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
+    pedras.forEach(([x, y, z, r], i) => { e.set(Math.random() * 3, Math.random() * 3, 0); m.setMatrixAt(i, M.compose(new THREE.Vector3(x, y, z), q.setFromEuler(e), new THREE.Vector3(r, r * (.7 + Math.random() * .3), r))); m.setColorAt(i, c.setHex(C.rock).offsetHSL(0, 0, Math.random() * .08 - .04)); });
+    m.castShadow = true; m.receiveShadow = true; island.add(m);
+  }
+  // MACACOS: pulam de copa em copa na mata fechada
+  const macacos = criarMacacos(copasMata, Math.round(9 * DENS)); island.add(macacos.grupo);
 
   // BICHOS — cada um anda so na sua regiao, longe do centro urbano do Bob
   const fauna = [];
@@ -892,7 +939,7 @@ export function createScene(canvas) {
         grade.marcarCaixa(bb.min.x - .35, bb.min.z - .35, bb.max.x + .35, bb.max.z + .35);
       });
     }
-    for (const [x, , z] of arvoresDaBorda) grade.marcarCirculo(x, z, .55);
+    for (const a of arvoresDaBorda) if (a.tipo !== 'arbusto') grade.marcarCirculo(a.x, a.z, .55);
   }
   // desbloqueaveis (posicoes fixas)
   // o farol saiu daqui: virou obra (ver OBRA_LOTE)
@@ -1139,6 +1186,9 @@ export function createScene(canvas) {
     if (slots.obra_moinho) slots.obra_moinho.getObjectByName('pas').rotation.z = t * (view && view.weather.clear ? 1.6 : .7);
     const fum = aviao.getObjectByName('fumaca'); fum.position.y = 1.9 + (t % 3) * .5; fum.scale.setScalar(1 + (t % 3) * .35); fum.material.opacity = 1 - (t % 3) / 3; fum.material.transparent = true;
     if (unlock.navio.visible) { unlock.navio.position.y = -.3 + Math.sin(t * .8) * .12; unlock.navio.rotation.z = Math.sin(t * .6) * .04; }
+    // vento nas arvores (GPU) e macacos
+    tempoVento.value = t; vento.value = view && view.weather && view.weather.fog ? 1.8 : 1;
+    macacos.atualizar(dt, t);
     // nuvens andando com o vento
     nuvens.children.forEach(n => {
       const u = n.userData; u.a += u.v * dt;
